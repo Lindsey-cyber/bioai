@@ -8,7 +8,7 @@
 
 1. 在 Supabase 创建 Free project。
 2. 打开 SQL Editor，执行 `supabase/migrations/001_initial.sql`。
-3. 从 **Connect → ORMs → Transaction pooler** 复制连接字符串，保留 `sslmode=require`。
+3. 从 **Connect → Session pooler** 复制连接字符串，保留 `sslmode=require`。不要选择 ORM；GitHub Actions 里的 Python batch 是持续连接，更适合 Session pooler（端口 5432）。
 4. 在 GitHub 仓库的 **Settings → Secrets and variables → Actions** 添加：
    - `DATABASE_URL`
    - `OPENAI_API_KEY`
