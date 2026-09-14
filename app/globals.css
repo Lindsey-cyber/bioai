@@ -112,6 +112,20 @@ button:focus-visible { outline: 1px solid var(--mint); outline-offset: 3px; }
 .segmented button { height: 100%; padding: 1px 10px 0; border: 0; border-bottom: 1px solid transparent; background: transparent; color: #73899a; font: 500 9px/1 var(--mono); cursor: pointer; text-transform: lowercase; }
 .segmented button.active { color: var(--mint); border-color: var(--mint); background: var(--mint-soft); }
 .region-pill { color: var(--blue); font: 500 8px/1 var(--mono); letter-spacing: .04em; white-space: nowrap; }
+.theme-toggle {
+  width: 29px;
+  height: 29px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--blue);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.theme-toggle:hover { border-color: var(--mint); color: var(--mint); background: var(--mint-soft); }
 
 .feed-wrap, .page-wrap { padding: 0 22px 68px; }
 .feed-intro { min-height: 112px; padding: 28px 7px 21px; display: flex; justify-content: space-between; gap: 22px; align-items: flex-end; border-bottom: 1px solid var(--line-strong); }
@@ -298,6 +312,9 @@ button:focus-visible { outline: 1px solid var(--mint); outline-offset: 3px; }
 .toggle-chips button { padding: 6px 8px; border: 1px solid var(--line-strong); background: transparent; color: var(--muted); cursor: pointer; font-size: 9px; }
 .toggle-chips button.active { border-color: var(--blue); background: var(--blue-soft); color: var(--blue); }
 .toggle-chips span { margin-right: 5px; }
+.topic-groups { margin: 17px 0 0 33px; display: grid; gap: 17px; }
+.topic-group > p { margin: 0 0 8px; color: var(--muted); font: 520 8px/1.4 var(--mono); }
+.topic-group .toggle-chips { margin: 0; }
 .geo-lock { margin: 16px 0 0 33px; min-height: 56px; padding: 10px 12px; border: 1px solid var(--line); background: rgba(14, 27, 36, .45); display: grid; grid-template-columns: auto 1fr auto; gap: 11px; align-items: center; }
 .geo-lock b, .geo-lock small { display: block; }
 .geo-lock b { font-size: 9px; }
@@ -306,6 +323,79 @@ button:focus-visible { outline: 1px solid var(--mint); outline-offset: 3px; }
 .toast { position: fixed; z-index: 80; left: 50%; bottom: 24px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 30px); padding: 10px 14px; background: #0b1d26; color: var(--mint); border: 1px solid #3d7a69; font-size: 9px; line-height: 1.4; }
 .toast::before { content: "> "; }
 .mobile-nav { display: none; }
+
+/* Warm, low-glare reading mode. The terminal structure stays intact while the
+   page switches to dark text, softened whites, and restrained accents. */
+.app-shell.day {
+  --bg: #f4f1e8;
+  --panel: #f8f6ef;
+  --panel-2: #ece9df;
+  --ink: #24302c;
+  --muted: #616c67;
+  --line: #d8d5ca;
+  --line-strong: #bfc8c2;
+  --mint: #166a59;
+  --mint-soft: rgba(22, 106, 89, .08);
+  --blue: #315f7d;
+  --blue-soft: rgba(49, 95, 125, .08);
+  --danger: #8b3940;
+  color: var(--ink);
+  color-scheme: light;
+  background:
+    radial-gradient(circle at 48% -20%, rgba(73, 119, 105, .08), transparent 38%),
+    linear-gradient(110deg, #f4f1e8 0%, #f8f6ef 54%, #f1eee5 100%);
+}
+.app-shell.day .desktop-sidebar { background: rgba(244, 241, 232, .96); }
+.app-shell.day .main-column { background: rgba(250, 249, 244, .72); }
+.app-shell.day .topbar,
+.app-shell.day .drawer-bar { background: rgba(244, 241, 232, .94); }
+.app-shell.day .drawer-panel { background: rgba(248, 246, 239, .99); }
+.app-shell.day .mobile-nav { background: rgba(244, 241, 232, .97); }
+.app-shell.day .drawer-scrim,
+.app-shell.day .term-scrim { background: rgba(36, 48, 44, .20); }
+.app-shell.day .term-modal { background: #f8f6ef; box-shadow: 0 18px 60px rgba(36, 48, 44, .10); }
+.app-shell.day .nav-button { color: #37443f; }
+.app-shell.day .nav-button:hover { background: rgba(49, 95, 125, .05); }
+.app-shell.day .nav-button.active { background: linear-gradient(90deg, rgba(22, 106, 89, .11), rgba(22, 106, 89, .02)); }
+.app-shell.day .story-title-button h2,
+.app-shell.day .section-summary b,
+.app-shell.day .detail-heading h2,
+.app-shell.day .detail-section-title h3,
+.app-shell.day .entity-card b,
+.app-shell.day .institution-buttons span,
+.app-shell.day .profile-hero h2,
+.app-shell.day .institution-hero h2,
+.app-shell.day .paper-list b,
+.app-shell.day .related-list b,
+.app-shell.day .mini-people b,
+.app-shell.day .saved-list > button > b,
+.app-shell.day .saved-list span b,
+.app-shell.day .settings-title h2,
+.app-shell.day .empty-state h2 { color: var(--ink); }
+.app-shell.day .story-title-button p,
+.app-shell.day .professional-inline p,
+.app-shell.day .detail-title-zh,
+.app-shell.day .simple-copy,
+.app-shell.day .professional-copy > p,
+.app-shell.day .detail-feedback > p,
+.app-shell.day .term-definition p,
+.app-shell.day .profile-section > p:not(.eyebrow) { color: #47534e; }
+.app-shell.day .story-kicker { color: var(--muted); }
+.app-shell.day .story-kicker > span:not(:last-child)::after { color: #8b9892; }
+.app-shell.day .icon-button { color: var(--ink); }
+.app-shell.day .person-chip { color: var(--ink); }
+.app-shell.day .avatar { border-color: #a9bbb2; background: linear-gradient(135deg, #e7ece5, #dce5df); }
+.app-shell.day .chip,
+.app-shell.day .feedback-bar button,
+.app-shell.day .topic-row span,
+.app-shell.day .institution-hero > span,
+.app-shell.day .institution-avatar { border-color: #91a9b7; }
+.app-shell.day .term-list button { border-color: #8da6b5; background: rgba(49, 95, 125, .04); }
+.app-shell.day .warning-compact,
+.app-shell.day .warning-box { border-color: #b96a70; color: #6f383c; background: rgba(139, 57, 64, .035); }
+.app-shell.day .geo-lock { background: rgba(97, 108, 103, .05); }
+.app-shell.day .toast { background: #e4efe9; color: #155b4e; border-color: #75a293; }
+.app-shell.day ::selection { color: #f8f6ef; background: var(--mint); }
 
 @media (min-width: 1180px) {
   .app-shell.has-detail { --feed-width: min(680px, calc(100vw - 660px)); }
@@ -371,6 +461,8 @@ button:focus-visible { outline: 1px solid var(--mint); outline-offset: 3px; }
   .choice-row { margin-left: 0; gap: 5px; }
   .choice-row button { padding: 7px 6px; }
   .toggle-chips, .geo-lock { margin-left: 0; }
+  .topic-groups { margin-left: 0; }
+  .region-pill { display: none; }
   .toast { bottom: 70px; }
 }
 

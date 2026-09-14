@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type View = "feed" | "saved" | "settings";
 type FeedMode = "for-you" | "latest";
+type Theme = "night" | "day";
 type Feedback = "太复杂" | "太简单" | "多来这种" | "少来这种" | "多举例子";
 
 type Term = {
@@ -391,6 +392,13 @@ const STORIES: Story[] = [
 
 const feedbackOptions: Feedback[] = ["太复杂", "太简单", "多来这种", "少来这种", "多举例子"];
 
+const TOPIC_GROUPS = [
+  { label: "AI 方法", items: ["基础模型", "生成式模型", "多模态学习", "科学机器学习", "AI Agents", "实验自动化"] },
+  { label: "分子与细胞", items: ["蛋白质设计", "药物发现", "基因组学", "单细胞", "空间组学", "CRISPR", "合成生物学"] },
+  { label: "神经科学", items: ["NeuroAI", "计算神经科学", "脑机接口", "神经影像", "神经退行性疾病", "神经精神疾病"] },
+  { label: "疾病与转化", items: ["肿瘤", "免疫学", "临床 AI", "生物标志物", "长寿与衰老"] },
+];
+
 function readLocal<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
@@ -404,6 +412,7 @@ function readLocal<T>(key: string, fallback: T): T {
 export default function Home() {
   const [view, setView] = useState<View>("feed");
   const [mode, setMode] = useState<FeedMode>("for-you");
+  const [theme, setTheme] = useState<Theme>("night");
   const [selectedStory, setSelectedStory] = useState<Story | null>(STORIES[0]);
   const [storyMobileOpen, setStoryMobileOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
@@ -417,7 +426,7 @@ export default function Home() {
   const [savedTab, setSavedTab] = useState<"stories" | "people" | "institutions">("stories");
   const [depth, setDepth] = useState("balanced");
   const [examples, setExamples] = useState("some");
-  const [topics, setTopics] = useState(["蛋白质设计", "药物发现", "单细胞"]);
+  const [topics, setTopics] = useState(["蛋白质设计", "药物发现", "单细胞", "NeuroAI"]);
   const [sources, setSources] = useState(["arXiv", "bioRxiv", "PubMed"]);
   const [hydrated, setHydrated] = useState(false);
 
@@ -429,8 +438,9 @@ export default function Home() {
       setFeedback(readLocal("bioai:feedback", {}));
       setDepth(readLocal("bioai:depth", "balanced"));
       setExamples(readLocal("bioai:examples", "some"));
-      setTopics(readLocal("bioai:topics", ["蛋白质设计", "药物发现", "单细胞"]));
+      setTopics(readLocal("bioai:topics", ["蛋白质设计", "药物发现", "单细胞", "NeuroAI"]));
       setSources(readLocal("bioai:sources", ["arXiv", "bioRxiv", "PubMed"]));
+      setTheme(readLocal<Theme>("bioai:theme", "night"));
       setHydrated(true);
     });
     return () => window.cancelAnimationFrame(frame);
@@ -444,6 +454,7 @@ export default function Home() {
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:examples", JSON.stringify(examples)); }, [examples, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:topics", JSON.stringify(topics)); }, [topics, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:sources", JSON.stringify(sources)); }, [sources, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem("bioai:theme", JSON.stringify(theme)); }, [theme, hydrated]);
 
   useEffect(() => {
     if (!toast) return;
@@ -512,7 +523,7 @@ export default function Home() {
   };
 
   return (
-    <div className={`app-shell ${selectedStory && view === "feed" ? "has-detail" : ""}`}>
+    <div className={`app-shell ${theme} ${selectedStory && view === "feed" ? "has-detail" : ""}`}>
       <aside className="desktop-sidebar" aria-label="主导航">
         <Brand />
         <nav className="side-nav">
@@ -520,27 +531,23 @@ export default function Home() {
           <NavButton active={view === "saved"} label="Saved" count={String(savedStories.length + savedPeople.length + savedInstitutions.length).padStart(2, "0")} onClick={() => navigate("saved")} />
           <NavButton active={view === "settings"} label="Settings" onClick={() => navigate("settings")} />
         </nav>
-        <div className="side-context">
-          <p className="eyebrow">// FILTERS</p>
-          <div className="lens-line"><span className="status-dot" /> for_you</div>
-          <p>└ latest</p>
-        </div>
         <div className="side-context source-list">
-          <p className="eyebrow">// SOURCES</p>
-          <span>› arXiv <b>[12]</b></span>
-          <span>› bioRxiv <b>[08]</b></span>
-          <span>› PubMed <b>[05]</b></span>
-          <span>› Nature <b>[04]</b></span>
-          <span>› Company / Lab <b>[06]</b></span>
+          <p className="eyebrow">Sources</p>
+          <span>arXiv</span>
+          <span>bioRxiv</span>
+          <span>PubMed</span>
+          <span>Nature</span>
+          <span>Company / Lab</span>
         </div>
         <div className="side-context topics-list">
-          <p className="eyebrow">// TOPICS (TOP)</p>
-          <span>蛋白质设计 <b>0.93</b></span>
-          <span>药物发现 <b>0.76</b></span>
-          <span>单细胞 <b>0.64</b></span>
-          <span>基础模型 <b>0.58</b></span>
+          <p className="eyebrow">Topics</p>
+          <span>蛋白质设计</span>
+          <span>药物发现</span>
+          <span>基因组学</span>
+          <span>神经科学</span>
+          <span>合成生物学</span>
+          <span>脑机接口</span>
         </div>
-        <p className="side-footer">v0.1.0<br />/ home / ai-bio<br /><span>_</span></p>
       </aside>
 
       <main className="main-column">
@@ -559,17 +566,18 @@ export default function Home() {
           )}
           {view !== "feed" && <h1>{view === "saved" ? "Saved" : "Settings"}</h1>}
           <span className="region-pill">[ US + EUROPE ]</span>
+          <button
+            className="theme-toggle"
+            onClick={() => setTheme((current) => current === "night" ? "day" : "night")}
+            aria-label={theme === "night" ? "切换到日间阅读模式" : "切换到夜间模式"}
+            title={theme === "night" ? "日间阅读模式" : "夜间模式"}
+          >
+            {theme === "night" ? "☼" : "☾"}
+          </button>
         </header>
 
         {view === "feed" && (
           <div className="feed-wrap">
-            <div className="feed-intro">
-              <div>
-                <p className="eyebrow">{mode === "for-you" ? "PERSONALIZED FEED" : "QUALIFIED TIME STREAM"}</p>
-                <h1>{mode === "for-you" ? "今天值得知道的 AI × Bio" : "最新合格信息"}</h1>
-              </div>
-              <p>{mode === "for-you" ? "重要性优先，保留少量探索内容。" : "只按时间排列，不受个人偏好影响。"}</p>
-            </div>
             <div className="story-list">
               {feedStories.map((story, index) => (
                 <StoryCard
@@ -668,7 +676,6 @@ function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`brand ${compact ? "compact" : ""}`}>
       <div className="brand-mark">AI <span>×</span> BIO<i /></div>
-      {!compact && <p>read slowly. connect the dots.</p>}
     </div>
   );
 }
@@ -851,7 +858,7 @@ function PersonProfile({ person, isSaved, onSave, onInstitution, onStory }: { pe
   const related = STORIES.filter((story) => story.authors.includes(person.id));
   return (
     <div className="profile-content">
-      <div className="profile-hero"><Avatar initials={person.initials} /><div><p className="eyebrow">RESEARCHER</p><h2>{person.name}</h2><p>{person.role}</p><button onClick={onInstitution}>{person.institution} →</button></div></div>
+      <div className="profile-hero"><Avatar initials={person.initials} /><div><h2>{person.name}</h2><p>{person.role}</p><button onClick={onInstitution}>{person.institution} →</button></div></div>
       <button className={`save-profile ${isSaved ? "active" : ""}`} onClick={onSave}>{isSaved ? "★ 已收藏" : "☆ 收藏人物"}</button>
       <ProfileSection label="他 / 她是谁"><p>{person.bio}</p></ProfileSection>
       <ProfileSection label="教育和职业经历"><p>{person.career}</p></ProfileSection>
@@ -890,7 +897,7 @@ function SavedView({ tab, setTab, storyIds, peopleIds, institutionIds, onStory, 
   const empty = tab === "stories" ? storyIds.length === 0 : tab === "people" ? peopleIds.length === 0 : institutionIds.length === 0;
   return (
     <div className="page-wrap">
-      <div className="page-heading"><p className="eyebrow">YOUR REFERENCE SHELF</p><h1>稍后回来，继续读懂。</h1><p>收藏只保留真正想再看的 Story、人物和机构。</p></div>
+      <div className="page-heading"><h1>Saved</h1></div>
       <div className="saved-tabs">
         <button className={tab === "stories" ? "active" : ""} onClick={() => setTab("stories")}>Story <span>{storyIds.length}</span></button>
         <button className={tab === "people" ? "active" : ""} onClick={() => setTab("people")}>People <span>{peopleIds.length}</span></button>
@@ -910,20 +917,27 @@ function SettingsView({ depth, setDepth, examples, setExamples, topics, setTopic
   const toggle = (item: string, values: string[], setter: (items: string[]) => void) => setter(values.includes(item) ? values.filter((value) => value !== item) : [...values, item]);
   return (
     <div className="page-wrap settings-page">
-      <div className="page-heading"><p className="eyebrow">PERSONAL READING PREFERENCES</p><h1>让解释更适合你。</h1><p>解释偏好和内容偏好分开保存，不会因为“太复杂”而少看到重要主题。</p></div>
-      <SettingsGroup number="01" title="Explanation depth" description="控制默认中文解释的技术深度。">
+      <div className="page-heading"><h1>Settings</h1></div>
+      <SettingsGroup number="01" title="解释深度" description="控制默认中文解释的技术深度。">
         <ChoiceRow values={[{ id: "simple", label: "浅显", desc: "尽量少术语" }, { id: "balanced", label: "平衡", desc: "默认推荐" }, { id: "technical", label: "专业", desc: "更多技术细节" }]} selected={depth} onSelect={(id) => { setDepth(id); showToast("解释深度已保存"); }} />
       </SettingsGroup>
-      <SettingsGroup number="02" title="Example amount" description="决定解释中使用多少具体例子。">
+      <SettingsGroup number="02" title="例子数量" description="决定解释中使用多少具体例子。">
         <ChoiceRow values={[{ id: "few", label: "少量", desc: "更简洁" }, { id: "some", label: "适量", desc: "关键处举例" }, { id: "many", label: "更多", desc: "更具体" }]} selected={examples} onSelect={(id) => { setExamples(id); showToast("例子偏好已保存"); }} />
       </SettingsGroup>
-      <SettingsGroup number="03" title="Topics" description="影响 For You 的排序，不会从 Latest 删除内容。">
-        <ToggleChips items={["蛋白质设计", "药物发现", "单细胞", "基因组学", "实验自动化", "临床 AI"]} selected={topics} onToggle={(item) => toggle(item, topics, setTopics)} />
+      <SettingsGroup number="03" title="主题" description="影响 For You 的排序，不会从 Latest 删除内容。">
+        <div className="topic-groups">
+          {TOPIC_GROUPS.map((group) => (
+            <div className="topic-group" key={group.label}>
+              <p>{group.label}</p>
+              <ToggleChips items={group.items} selected={topics} onToggle={(item) => toggle(item, topics, setTopics)} />
+            </div>
+          ))}
+        </div>
       </SettingsGroup>
-      <SettingsGroup number="04" title="Sources" description="第一版优先使用论文与权威索引。">
+      <SettingsGroup number="04" title="来源" description="第一版优先使用论文与权威索引。">
         <ToggleChips items={["arXiv", "bioRxiv", "PubMed", "OpenAlex", "Lab blogs"]} selected={sources} onToggle={(item) => toggle(item, sources, setSources)} />
       </SettingsGroup>
-      <SettingsGroup number="05" title="Geography" description="当前产品的 hard filter。">
+      <SettingsGroup number="05" title="地区" description="当前只收录美国和欧洲。">
         <div className="geo-lock"><span className="status-dot" /><div><b>United States + Europe</b><small>已锁定 · 后续可通过配置修改</small></div><span>LOCKED</span></div>
       </SettingsGroup>
     </div>
