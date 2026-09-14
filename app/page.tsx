@@ -404,7 +404,8 @@ function readLocal<T>(key: string, fallback: T): T {
 export default function Home() {
   const [view, setView] = useState<View>("feed");
   const [mode, setMode] = useState<FeedMode>("for-you");
-  const [selectedStory, setSelectedStory] = useState<Story | null>(null);
+  const [selectedStory, setSelectedStory] = useState<Story | null>(STORIES[0]);
+  const [storyMobileOpen, setStoryMobileOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null);
   const [selectedTerm, setSelectedTerm] = useState<Term | null>(null);
@@ -456,7 +457,10 @@ export default function Home() {
       if (selectedTerm) setSelectedTerm(null);
       else if (selectedPerson) setSelectedPerson(null);
       else if (selectedInstitution) setSelectedInstitution(null);
-      else setSelectedStory(null);
+      else {
+        setSelectedStory(null);
+        setStoryMobileOpen(false);
+      }
     };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
@@ -495,14 +499,20 @@ export default function Home() {
 
   const navigate = (next: View) => {
     setView(next);
-    setSelectedStory(null);
+    setSelectedStory(next === "feed" ? STORIES[0] : null);
+    setStoryMobileOpen(false);
     setSelectedPerson(null);
     setSelectedInstitution(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const openStory = (story: Story) => {
+    setSelectedStory(story);
+    setStoryMobileOpen(true);
+  };
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${selectedStory && view === "feed" ? "has-detail" : ""}`}>
       <aside className="desktop-sidebar" aria-label="主导航">
         <Brand />
         <nav className="side-nav">
@@ -511,23 +521,36 @@ export default function Home() {
           <NavButton active={view === "settings"} label="Settings" onClick={() => navigate("settings")} />
         </nav>
         <div className="side-context">
-          <p className="eyebrow">TODAY&apos;S LENS</p>
-          <div className="lens-line"><span className="status-dot" /> US + EUROPE</div>
-          <p>高可信度 · 重要进展优先</p>
+          <p className="eyebrow">// FILTERS</p>
+          <div className="lens-line"><span className="status-dot" /> for_you</div>
+          <p>└ latest</p>
+        </div>
+        <div className="side-context source-list">
+          <p className="eyebrow">// SOURCES</p>
+          <span>› arXiv <b>[12]</b></span>
+          <span>› bioRxiv <b>[08]</b></span>
+          <span>› PubMed <b>[05]</b></span>
+          <span>› Nature <b>[04]</b></span>
+          <span>› Company / Lab <b>[06]</b></span>
         </div>
         <div className="side-context topics-list">
-          <p className="eyebrow">TOPICS</p>
+          <p className="eyebrow">// TOPICS (TOP)</p>
           <span>蛋白质设计 <b>0.93</b></span>
           <span>药物发现 <b>0.76</b></span>
           <span>单细胞 <b>0.64</b></span>
           <span>基础模型 <b>0.58</b></span>
         </div>
-        <p className="side-footer">PRIVATE READING TOOL<br />Phase 1 · Mock data</p>
+        <p className="side-footer">v0.1.0<br />/ home / ai-bio<br /><span>_</span></p>
       </aside>
 
       <main className="main-column">
         <header className="topbar">
           <div className="mobile-brand"><Brand compact /></div>
+          <div className="terminal-path">
+            <span>▱</span>
+            <b>{view}</b>
+            {view === "feed" && <><i>/</i><em>{mode === "for-you" ? "for_you" : "latest"}</em></>}
+          </div>
           {view === "feed" && (
             <div className="segmented" aria-label="Feed mode">
               <button className={mode === "for-you" ? "active" : ""} onClick={() => setMode("for-you")}>For You</button>
@@ -535,7 +558,7 @@ export default function Home() {
             </div>
           )}
           {view !== "feed" && <h1>{view === "saved" ? "Saved" : "Settings"}</h1>}
-          <span className="region-pill">US · EU</span>
+          <span className="region-pill">[ US + EUROPE ]</span>
         </header>
 
         {view === "feed" && (
@@ -555,7 +578,7 @@ export default function Home() {
                   index={index + 1}
                   isSaved={savedStories.includes(story.id)}
                   selectedFeedback={feedback[story.id] || []}
-                  onOpen={() => setSelectedStory(story)}
+                  onOpen={() => openStory(story)}
                   onSave={() => toggleArray(story.id, savedStories, setSavedStories, " Story")}
                   onFeedback={(option) => applyFeedback(story.id, option)}
                   onTerm={setSelectedTerm}
@@ -574,7 +597,7 @@ export default function Home() {
             storyIds={savedStories}
             peopleIds={savedPeople}
             institutionIds={savedInstitutions}
-            onStory={setSelectedStory}
+            onStory={openStory}
             onPerson={setSelectedPerson}
             onInstitution={setSelectedInstitution}
           />
@@ -592,7 +615,12 @@ export default function Home() {
       </nav>
 
       {selectedStory && (
-        <Drawer title={`STORY / ${selectedStory.id}`} onClose={() => setSelectedStory(null)}>
+        <Drawer
+          title={`/ story/${selectedStory.id}`}
+          pinned={view === "feed"}
+          mobileOpen={storyMobileOpen}
+          onClose={() => { setSelectedStory(null); setStoryMobileOpen(false); }}
+        >
           <StoryDetail
             story={selectedStory}
             isSaved={savedStories.includes(selectedStory.id)}
@@ -613,7 +641,7 @@ export default function Home() {
             isSaved={savedPeople.includes(selectedPerson.id)}
             onSave={() => toggleArray(selectedPerson.id, savedPeople, setSavedPeople, " People")}
             onInstitution={() => setSelectedInstitution(INSTITUTIONS.find((item) => item.name === selectedPerson.institution) || null)}
-            onStory={(story) => { setSelectedPerson(null); setSelectedStory(story); }}
+            onStory={(story) => { setSelectedPerson(null); openStory(story); }}
           />
         </Drawer>
       )}
@@ -625,7 +653,7 @@ export default function Home() {
             isSaved={savedInstitutions.includes(selectedInstitution.id)}
             onSave={() => toggleArray(selectedInstitution.id, savedInstitutions, setSavedInstitutions, " Institution")}
             onPerson={(person) => { setSelectedInstitution(null); setSelectedPerson(person); }}
-            onStory={(story) => { setSelectedInstitution(null); setSelectedStory(story); }}
+            onStory={(story) => { setSelectedInstitution(null); openStory(story); }}
           />
         </Drawer>
       )}
@@ -791,12 +819,12 @@ function Avatar({ initials, small = false }: { initials: string; small?: boolean
   return <span className={`avatar ${small ? "small" : ""}`} aria-label="可靠照片暂缺，显示姓名首字母">{initials}</span>;
 }
 
-function Drawer({ title, onClose, nested = false, children }: { title: string; onClose: () => void; nested?: boolean; children: React.ReactNode }) {
+function Drawer({ title, onClose, nested = false, pinned = false, mobileOpen = true, children }: { title: string; onClose: () => void; nested?: boolean; pinned?: boolean; mobileOpen?: boolean; children: React.ReactNode }) {
   return (
-    <div className={`drawer-layer ${nested ? "nested" : ""}`} role="dialog" aria-modal="true">
+    <div className={`drawer-layer ${nested ? "nested" : ""} ${pinned ? "pinned" : ""} ${mobileOpen ? "mobile-open" : ""}`} role="dialog" aria-modal={pinned ? "false" : "true"}>
       <button className="drawer-scrim" aria-label="关闭" onClick={onClose} />
       <aside className="drawer-panel">
-        <div className="drawer-bar"><span>{title}</span><button onClick={onClose}>关闭 <b>×</b></button></div>
+        <div className="drawer-bar"><span>{title}</span><button onClick={onClose}>[ close ]</button></div>
         {children}
       </aside>
     </div>
