@@ -230,7 +230,7 @@ export async function GET(request: NextRequest) {
     `;
     return NextResponse.json(
       { stories: rows.map(transformRow), configured: true },
-      { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600" } },
+      { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
     console.error("Feed query failed", error);
