@@ -32,6 +32,20 @@ button { color: inherit; }
 button:focus-visible { outline: 1px solid var(--mint); outline-offset: 3px; }
 ::selection { color: #04110d; background: var(--mint); }
 
+.debug-page {
+  width: min(1080px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 32px 0 80px;
+  color: var(--ink);
+}
+.debug-page header { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--line-strong); }
+.debug-page h1 { margin: 9px 0 0; font-size: 20px; font-weight: 600; }
+.debug-page h2 { margin: 0 0 12px; color: var(--mint); font-size: 12px; font-weight: 600; }
+.debug-page a { color: var(--blue); font-size: 10px; }
+.debug-page time { color: var(--muted); font-size: 9px; }
+.debug-page section { margin-top: 22px; }
+.debug-page pre { margin: 0; padding: 14px; overflow: auto; border: 1px solid var(--line); background: var(--panel); color: #bfcbd4; font: 9px/1.6 var(--mono); white-space: pre-wrap; word-break: break-word; }
+
 .app-shell { min-height: 100vh; }
 .desktop-sidebar {
   position: fixed;

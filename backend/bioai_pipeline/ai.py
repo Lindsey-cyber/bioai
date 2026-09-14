@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
@@ -72,6 +73,33 @@ class StoryExplanation(StrictModel):
     sections: ExplanationSections
     limitations: list[str] = Field(max_length=5)
     terminology: list[Terminology] = Field(max_length=8)
+
+
+_MODEL_META_PATTERNS = (
+    re.compile(r"\bneed\s+(?:to\s+)?(?:be\s+)?chinese\b", re.IGNORECASE),
+    re.compile(r"\blet(?:'|’)s\s+(?:revise|rewrite|fix|continue)\b", re.IGNORECASE),
+    re.compile(r"\bwait,?\s+(?:already|before|need|the)\b", re.IGNORECASE),
+    re.compile(r"\b(?:valid|correct)\s+json\b", re.IGNORECASE),
+    re.compile(r"\bfinal\s+generation\b", re.IGNORECASE),
+    re.compile(r"\bcurrent\s+string\b", re.IGNORECASE),
+    re.compile(r"\bmanually\s+before\s+closing\b", re.IGNORECASE),
+)
+
+
+def validate_explanation(explanation: StoryExplanation) -> None:
+    """Reject obvious model-process text before it can reach the feed."""
+    values = [explanation.title_zh, *explanation.limitations]
+    for section in explanation.sections.model_dump().values():
+        values.extend((section["simple"], section["professional"]))
+    for term in explanation.terminology:
+        values.extend((term.chinese_explanation, term.english_explanation))
+
+    for value in values:
+        for pattern in _MODEL_META_PATTERNS:
+            if pattern.search(value):
+                raise RuntimeError(
+                    "Deep explanation failed quality validation: model-process text detected"
+                )
 
 
 @dataclass(frozen=True)
@@ -172,6 +200,7 @@ class OpenAIProcessor:
         parsed = response.output_parsed
         if parsed is None:
             raise RuntimeError("Deep model did not return a parsed explanation")
+        validate_explanation(parsed)
         return self._result(
             parsed,
             response,

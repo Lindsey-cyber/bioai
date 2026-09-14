@@ -85,6 +85,24 @@ function formatAge(value: string) {
   return days === 1 ? "昨天" : `${days} 天前`;
 }
 
+const modelMetaMarkers = [
+  /\bneed\s+(?:to\s+)?(?:be\s+)?chinese\b/i,
+  /\blet(?:'|’)s\s+(?:revise|rewrite|fix|continue)\b/i,
+  /\bwait,?\s+(?:already|before|need|the)\b/i,
+  /\b(?:valid|correct)\s+json\b/i,
+  /\bfinal\s+generation\b/i,
+  /\bcurrent\s+string\b/i,
+];
+
+function sanitizeGeneratedText(value: string) {
+  let cutoff = value.length;
+  for (const marker of modelMetaMarkers) {
+    const match = marker.exec(value);
+    if (match?.index !== undefined) cutoff = Math.min(cutoff, match.index);
+  }
+  return value.slice(0, cutoff).trim().replace(/[，,;；:\s]+$/, "");
+}
+
 function transformRow(row: FeedRow) {
   const terms = (row.terminology || []).map((term) => ({
     zh: String(term.chinese_name || ""),
@@ -162,7 +180,10 @@ function transformRow(row: FeedRow) {
     relevance: Number(row.personal_relevance || 0),
     finalScore: Number(row.final_score || 0),
     sections,
-    limitation: (row.limitations || []).join("；") || undefined,
+    limitation: (row.limitations || [])
+      .map((item) => sanitizeGeneratedText(String(item)))
+      .filter(Boolean)
+      .join("；") || undefined,
     authors: people.map((person) => person.id),
     institutions: institutions.map((institution) => institution.id),
     people,

@@ -4,7 +4,14 @@ import unittest
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from bioai_pipeline.ai import FastAssessmentBatch, OpenAIProcessor
+from bioai_pipeline.ai import (
+    ExplanationPart,
+    ExplanationSections,
+    FastAssessmentBatch,
+    OpenAIProcessor,
+    StoryExplanation,
+    validate_explanation,
+)
 from bioai_pipeline.config import Settings
 from bioai_pipeline.models import PaperRecord
 
@@ -75,6 +82,44 @@ class OpenAIProcessorTest(unittest.TestCase):
         self.assertEqual(client.responses.kwargs["reasoning"], {"effort": "none"})
         self.assertIs(client.responses.kwargs["store"], False)
         self.assertEqual(result.estimated_cost_usd, 0.0008)
+
+    def test_quality_guard_rejects_model_process_text(self) -> None:
+        part = ExplanationPart(simple="清晰的中文解释。", professional="专业中文解释。")
+        explanation = StoryExplanation(
+            title_zh="测试论文",
+            sections=ExplanationSections(
+                what_happened=part,
+                problem=part,
+                approach=part,
+                results=part,
+                why_it_matters=part,
+            ),
+            limitations=["样本量较小。 Need Chinese only. Let's revise final limitations."],
+            terminology=[],
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "quality validation"):
+            validate_explanation(explanation)
+
+    def test_quality_guard_allows_scientific_english_terms(self) -> None:
+        part = ExplanationPart(
+            simple="研究使用了 MRI 数据。",
+            professional="模型在 computational benchmark 上进行了验证。",
+        )
+        explanation = StoryExplanation(
+            title_zh="测试论文",
+            sections=ExplanationSections(
+                what_happened=part,
+                problem=part,
+                approach=part,
+                results=part,
+                why_it_matters=part,
+            ),
+            limitations=["目前没有 wet-lab validation。"],
+            terminology=[],
+        )
+
+        validate_explanation(explanation)
 
 
 if __name__ == "__main__":

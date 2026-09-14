@@ -27,6 +27,7 @@ class ProcessingSummary:
     output_tokens: int
     estimated_cost_usd: float
     published: tuple[dict[str, object], ...]
+    errors: tuple[str, ...]
 
 
 def _personal_relevance(topics: list[str], affinities: dict[str, float]) -> float:
@@ -292,4 +293,5 @@ def run_story_processing(
         output_tokens=total_output_tokens,
         estimated_cost_usd=round(total_cost, 6),
         published=tuple(published_rows),
+        errors=tuple(errors),
     )
