@@ -28,6 +28,7 @@ class ArxivPaper:
     comment: str | None
     query_name: str
     raw_xml: str
+    announce_type: str | None = None
 
     def raw_payload(self) -> dict[str, Any]:
         value = asdict(self)
@@ -43,4 +44,3 @@ class HeuristicResult:
     topics: tuple[str, ...]
     matched_ai_terms: tuple[str, ...]
     matched_bio_terms: tuple[str, ...]
-

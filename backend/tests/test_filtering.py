@@ -51,7 +51,17 @@ class FilteringTest(unittest.TestCase):
         )
         self.assertFalse(result.accepted)
 
+    def test_rejects_programming_use_of_cell(self) -> None:
+        result = classify_with_rules(
+            paper(
+                "Evaluating language model coding agents",
+                "The benchmark compares two systems and reports results for each cell.",
+                ("cs.AI",),
+            )
+        )
+
+        self.assertFalse(result.accepted)
+
 
 if __name__ == "__main__":
     unittest.main()
-

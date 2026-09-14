@@ -13,7 +13,7 @@
    - `DATABASE_URL`
    - `OPENAI_API_KEY`
    - `OPENALEX_API_KEY`
-5. 在 Actions 页面手动运行一次 **Ingest arXiv**。确认无误后，工作流会每天美国东部时间 00:17 自动执行。
+5. 在 Actions 页面手动运行一次 **Ingest arXiv**。确认无误后，工作流会每天美国东部时间 00:17 自动执行。每日发现默认使用 arXiv 官方 RSS/Atom；搜索 API 只保留为可选补抓方式，避免 GitHub 共享 IP 的 429 限流。
 
 所有私钥只放在 GitHub/Vercel Secrets，不要提交到仓库，也不要粘贴到聊天中。完整变量说明见 `.env.example`。
 

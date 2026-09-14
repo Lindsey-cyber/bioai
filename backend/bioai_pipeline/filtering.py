@@ -25,7 +25,10 @@ BIO_KEYWORDS = {
     "genome",
     "genomic",
     "gene",
-    "cell",
+    "cell biology",
+    "cellular",
+    "single cell",
+    "single-cell",
     "clinical",
     "biomedical",
     "brain",
@@ -82,4 +85,3 @@ def classify_with_rules(paper: ArxivPaper) -> HeuristicResult:
         matched_ai_terms=ai_matches,
         matched_bio_terms=bio_matches,
     )
-

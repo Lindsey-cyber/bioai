@@ -4,10 +4,10 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
-from bioai_pipeline.config import ARXIV_QUERIES, Settings
+from bioai_pipeline.config import ARXIV_QUERIES, ARXIV_RSS_FEEDS, Settings
 from bioai_pipeline.filtering import classify_with_rules
 from bioai_pipeline.models import ArxivPaper, HeuristicResult
-from bioai_pipeline.sources.arxiv import ArxivClient
+from bioai_pipeline.sources.arxiv import ArxivClient, ArxivRssClient
 
 
 @dataclass(frozen=True)
@@ -45,23 +45,39 @@ def run_arxiv_ingest(
 ) -> RunSummary:
     started = now or datetime.now(timezone.utc)
     window_start = started - timedelta(hours=settings.lookback_hours)
-    client = ArxivClient()
     fetched: list[ArxivPaper] = []
 
-    for name, query in ARXIV_QUERIES.items():
-        fetched.extend(
-            client.fetch_recent(
-                query_name=name,
-                query=query,
-                start_at=window_start,
-                end_at=started,
-                max_results=settings.max_results_per_query,
+    if settings.arxiv_discovery_mode == "rss":
+        client = ArxivRssClient()
+        for name, categories in ARXIV_RSS_FEEDS.items():
+            fetched.extend(client.fetch_daily(query_name=name, categories=categories))
+    elif settings.arxiv_discovery_mode == "api":
+        client = ArxivClient()
+        for name, query in ARXIV_QUERIES.items():
+            fetched.extend(
+                client.fetch_recent(
+                    query_name=name,
+                    query=query,
+                    start_at=window_start,
+                    end_at=started,
+                    max_results=settings.max_results_per_query,
+                )
             )
-        )
+    else:
+        raise ValueError("ARXIV_DISCOVERY_MODE must be 'rss' or 'api'")
 
     unique = _deduplicate(fetched)
     candidates = [Candidate(paper, classify_with_rules(paper)) for paper in unique]
-    accepted = [candidate for candidate in candidates if candidate.heuristic.accepted]
+    accepted: list[Candidate] = []
+    accepted_by_feed: dict[str, int] = {}
+    for candidate in candidates:
+        if not candidate.heuristic.accepted:
+            continue
+        feed_count = accepted_by_feed.get(candidate.paper.query_name, 0)
+        if feed_count >= settings.max_results_per_query:
+            continue
+        accepted.append(candidate)
+        accepted_by_feed[candidate.paper.query_name] = feed_count + 1
 
     if not dry_run:
         if not settings.database_url:
@@ -72,14 +88,14 @@ def run_arxiv_ingest(
         config = {
             "lookback_hours": settings.lookback_hours,
             "max_results_per_query": settings.max_results_per_query,
-            "query_names": list(ARXIV_QUERIES),
+            "discovery_mode": settings.arxiv_discovery_mode,
+            "query_names": list(ARXIV_RSS_FEEDS),
         }
         with Repository(settings.database_url) as repository:
             run_id = repository.start_run(trigger, config)
             try:
-                for paper in unique:
-                    repository.save_raw(paper, run_id)
                 for candidate in accepted:
+                    repository.save_raw(candidate.paper, run_id)
                     repository.upsert_paper(candidate.paper, candidate.heuristic)
                 repository.finish_run(
                     run_id,

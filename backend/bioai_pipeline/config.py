@@ -64,6 +64,11 @@ ARXIV_QUERIES = {
     "aiml_with_bio": f"{_or(AI_CATEGORIES)} AND {_or(BIO_TERMS)}",
 }
 
+ARXIV_RSS_FEEDS = {
+    "qbio_with_ai": tuple(value.removeprefix("cat:") for value in Q_BIO_CATEGORIES),
+    "aiml_with_bio": tuple(value.removeprefix("cat:") for value in AI_CATEGORIES),
+}
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -78,6 +83,7 @@ class Settings:
     max_sol_stories_per_day: int
     sol_max_input_tokens: int
     prompt_version: str
+    arxiv_discovery_mode: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -93,5 +99,5 @@ class Settings:
             max_sol_stories_per_day=int(os.getenv("MAX_SOL_STORIES_PER_DAY", "6")),
             sol_max_input_tokens=int(os.getenv("SOL_MAX_INPUT_TOKENS", "18000")),
             prompt_version=os.getenv("PROMPT_VERSION", "story-v1"),
+            arxiv_discovery_mode=os.getenv("ARXIV_DISCOVERY_MODE", "rss"),
         )
-
