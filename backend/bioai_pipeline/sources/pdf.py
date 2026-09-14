@@ -14,6 +14,12 @@ class PdfError(RuntimeError):
     pass
 
 
+def clean_extracted_text(value: str) -> str:
+    # PostgreSQL text/jsonb cannot store NUL characters occasionally emitted
+    # by PDF font maps. Other whitespace remains useful for scientific layout.
+    return re.sub(r"[ \t]+", " ", value.replace("\x00", "")).strip()
+
+
 class PdfTextClient:
     def __init__(self, max_bytes: int = 25_000_000):
         self.max_bytes = max_bytes
@@ -47,7 +53,7 @@ class PdfTextClient:
         finally:
             document.close()
         combined = "\n".join(parts)
-        return re.sub(r"[ \t]+", " ", combined).strip()
+        return clean_extracted_text(combined)
 
     def _get(self, url: str) -> bytes:
         request = urllib.request.Request(
