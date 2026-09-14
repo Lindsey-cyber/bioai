@@ -1,11 +1,6 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono } from "next/font/google";
+import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
-
-const jetBrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "AI × BIO — Personal News Feed",
@@ -15,7 +10,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN">
-      <body className={jetBrainsMono.variable}>{children}</body>
+      <body>{children}</body>
     </html>
   );
 }
