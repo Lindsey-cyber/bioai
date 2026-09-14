@@ -32,12 +32,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     settings = Settings.from_env()
-    if args.lookback_hours is not None:
-        settings = replace(settings, lookback_hours=args.lookback_hours)
-    if args.max_results_per_query is not None:
-        settings = replace(settings, max_results_per_query=args.max_results_per_query)
 
     if args.command == "ingest-arxiv":
+        if args.lookback_hours is not None:
+            settings = replace(settings, lookback_hours=args.lookback_hours)
+        if args.max_results_per_query is not None:
+            settings = replace(
+                settings,
+                max_results_per_query=args.max_results_per_query,
+            )
         summary = run_arxiv_ingest(
             settings,
             dry_run=args.dry_run,
