@@ -18,7 +18,12 @@ class PdfTextClient:
     def __init__(self, max_bytes: int = 25_000_000):
         self.max_bytes = max_bytes
 
-    def fetch_text(self, url: str, max_chars: int) -> str:
+    def fetch_text(
+        self,
+        url: str,
+        max_chars: int,
+        max_pages: int | None = None,
+    ) -> str:
         payload = self._get(url)
         try:
             document = pymupdf.open(stream=payload, filetype="pdf")
@@ -28,7 +33,9 @@ class PdfTextClient:
         parts: list[str] = []
         size = 0
         try:
-            for page in document:
+            for page_number, page in enumerate(document):
+                if max_pages is not None and page_number >= max_pages:
+                    break
                 text = page.get_text("text")
                 if not text:
                     continue

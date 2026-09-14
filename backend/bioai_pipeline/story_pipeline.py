@@ -127,15 +127,35 @@ def run_story_processing(
                     repository.mark_processing_error(paper.id, str(exc))
 
             refreshed = repository.list_processing_candidates(max_papers)
-            fast_papers = [
-                paper
-                for paper in refreshed
-                if paper.geography_status == "eligible"
-                and paper.processing_status == "metadata_ready"
-                and not paper.source_metadata.get("fast_assessment")
-            ]
+            fast_papers: list[PaperRecord] = []
+            affiliation_texts: dict[str, str] = {}
+            fallback_count = 0
+            for paper in refreshed:
+                if paper.source_metadata.get("fast_assessment"):
+                    continue
+                if paper.geography_status == "eligible":
+                    fast_papers.append(paper)
+                    continue
+                if (
+                    paper.geography_status == "unknown"
+                    and fallback_count < settings.pdf_geography_fallback_limit
+                ):
+                    try:
+                        first_page = pdf.fetch_text(
+                            paper.pdf_url,
+                            max_chars=16_000,
+                            max_pages=1,
+                        )
+                        if len(first_page) < 200:
+                            raise RuntimeError("PDF first page text was unexpectedly short")
+                        affiliation_texts[paper.arxiv_id] = first_page
+                        fast_papers.append(paper)
+                        fallback_count += 1
+                    except Exception as exc:
+                        errors.append(f"{paper.arxiv_id}: affiliation PDF: {exc}")
+                        repository.mark_processing_error(paper.id, str(exc))
             if fast_papers:
-                fast_result = ai.assess_batch(fast_papers)
+                fast_result = ai.assess_batch(fast_papers, affiliation_texts)
                 batch = fast_result.value
                 if not isinstance(batch, FastAssessmentBatch):
                     raise RuntimeError("Unexpected fast assessment result type")
@@ -146,6 +166,21 @@ def run_story_processing(
                 divisor = max(1, len(batch.assessments))
                 for assessment in batch.assessments:
                     paper = by_arxiv_id[assessment.arxiv_id]
+                    geography_status = paper.geography_status
+                    if geography_status != "eligible":
+                        geography_status = repository.save_ai_geography(
+                            paper.id,
+                            assessment,
+                            settings.allowed_country_codes,
+                        )
+                        if geography_status == "eligible":
+                            eligible_count += 1
+                            unresolved_count = max(0, unresolved_count - 1)
+                        elif geography_status == "ineligible":
+                            ineligible_count += 1
+                            unresolved_count = max(0, unresolved_count - 1)
+                    if geography_status != "eligible":
+                        continue
                     repository.save_fast_assessment(
                         paper.id,
                         assessment,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Literal
+from typing import Annotated, Literal
 
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
@@ -24,6 +24,7 @@ Topic = Literal[
     "molecular generation",
     "clinical ai",
 ]
+CountryCode = Annotated[str, Field(min_length=2, max_length=2)]
 
 
 class StrictModel(BaseModel):
@@ -37,6 +38,8 @@ class FastAssessment(StrictModel):
     global_importance: float = Field(ge=0, le=1)
     confidence: float = Field(ge=0, le=1)
     reason_zh: str
+    country_codes: list[CountryCode] = Field(max_length=8)
+    geography_evidence: list[str] = Field(max_length=4)
 
 
 class FastAssessmentBatch(StrictModel):
@@ -87,13 +90,20 @@ class OpenAIProcessor:
         self.settings = settings
         self.client = client or OpenAI(api_key=settings.openai_api_key)
 
-    def assess_batch(self, papers: list[PaperRecord]) -> AiResult:
+    def assess_batch(
+        self,
+        papers: list[PaperRecord],
+        affiliation_texts: dict[str, str] | None = None,
+    ) -> AiResult:
+        affiliation_texts = affiliation_texts or {}
         payload = [
             {
                 "arxiv_id": paper.arxiv_id,
                 "title": paper.title,
                 "abstract": paper.abstract,
                 "categories": paper.categories,
+                "known_metadata": paper.source_metadata.get("openalex", {}),
+                "first_page_text": affiliation_texts.get(paper.arxiv_id, ""),
             }
             for paper in papers
         ]
@@ -105,7 +115,10 @@ class OpenAIProcessor:
                 "neuroscience. Reject incidental keyword overlap. Score global importance using "
                 "novelty, strength of evidence, field impact, and practical relevance. Do not infer "
                 "claims beyond the abstract. Return every supplied arxiv_id exactly once. reason_zh "
-                "must be one concise, natural Chinese sentence."
+                "must be one concise, natural Chinese sentence. Extract ISO alpha-2 country codes "
+                "only when the known metadata or first-page author affiliation block gives concrete "
+                "evidence; institution names may be mapped to their country, but never infer location "
+                "from an author's name. Use empty lists when geography cannot be confirmed."
             ),
             input=json.dumps(payload, ensure_ascii=False),
             reasoning={"effort": self.settings.fast_reasoning_effort},

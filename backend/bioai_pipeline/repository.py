@@ -190,7 +190,12 @@ class Repository(AbstractContextManager["Repository"]):
                     'rule_accepted', 'metadata_unresolved', 'metadata_ready',
                     'deep_pending', 'processing_failed'
                 )
-                ORDER BY published_at DESC
+                ORDER BY
+                    (topics && ARRAY[
+                        'neuroscience', 'neuroimaging', 'brain-computer interfaces'
+                    ]::text[]) DESC,
+                    rule_relevance DESC NULLS LAST,
+                    published_at DESC
                 LIMIT %s
                 """,
                 (limit,),
@@ -352,6 +357,50 @@ class Repository(AbstractContextManager["Repository"]):
                     paper_id,
                 ),
             )
+
+    def save_ai_geography(
+        self,
+        paper_id: str,
+        assessment: FastAssessment,
+        allowed_country_codes: frozenset[str],
+    ) -> str:
+        countries = sorted({code.upper() for code in assessment.country_codes})
+        if not countries:
+            geography_status = "unknown"
+            processing_status = "metadata_unresolved"
+        elif allowed_country_codes.intersection(countries):
+            geography_status = "eligible"
+            processing_status = "metadata_ready"
+        else:
+            geography_status = "ineligible"
+            processing_status = "geography_ineligible"
+        patch = {
+            "pdf_geography": {
+                "country_codes": countries,
+                "evidence": assessment.geography_evidence,
+            }
+        }
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE papers
+                SET geography_status = %s,
+                    country_codes = %s,
+                    processing_status = %s,
+                    processing_error = NULL,
+                    source_metadata = source_metadata || %s,
+                    updated_at = now()
+                WHERE id = %s
+                """,
+                (
+                    geography_status,
+                    countries,
+                    processing_status,
+                    Jsonb(patch),
+                    paper_id,
+                ),
+            )
+        return geography_status
 
     def save_pdf_text(self, paper: PaperRecord, run_id: str, text: str) -> None:
         payload = {"url": paper.pdf_url, "text": text}

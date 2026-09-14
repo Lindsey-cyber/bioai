@@ -26,6 +26,8 @@ class FakeResponses:
                         "global_importance": 0.8,
                         "confidence": 0.9,
                         "reason_zh": "这项工作直接连接脑科学与机器学习。",
+                        "country_codes": ["US"],
+                        "geography_evidence": ["Example University"],
                     }
                 ]
             }

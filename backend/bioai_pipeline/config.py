@@ -102,6 +102,7 @@ class Settings:
     rank_personal_weight: float
     rank_freshness_weight: float
     rank_confidence_weight: float
+    pdf_geography_fallback_limit: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -147,4 +148,7 @@ class Settings:
             rank_personal_weight=float(os.getenv("RANK_PERSONAL_WEIGHT", "0.30")),
             rank_freshness_weight=float(os.getenv("RANK_FRESHNESS_WEIGHT", "0.10")),
             rank_confidence_weight=float(os.getenv("RANK_CONFIDENCE_WEIGHT", "0.05")),
+            pdf_geography_fallback_limit=int(
+                os.getenv("PDF_GEOGRAPHY_FALLBACK_LIMIT", "12")
+            ),
         )
