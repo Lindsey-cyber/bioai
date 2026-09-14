@@ -690,7 +690,7 @@ function StoryCard({ story, index, isSaved, selectedFeedback, onOpen, onSave, on
     <article className="story-card">
       <div className="story-meta-row">
         <div className="story-kicker">
-          <span className="story-index">{String(index).padStart(2, "0")}</span>
+          <span className="story-index">[{String(index).padStart(2, "0")}]</span>
           <span className="source-name">{story.source}</span>
           <span>{story.age}</span>
           <span>{story.sourceType}</span>
