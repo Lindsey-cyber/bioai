@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import postgres from "postgres";
+import { getDatabase } from "@/lib/server-database";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,21 +42,6 @@ const sectionMap = [
   ["results", "结果怎么样？"],
   ["why_it_matters", "为什么值得我知道？"],
 ] as const;
-
-let database: ReturnType<typeof postgres> | null = null;
-
-function getDatabase() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) return null;
-  database ??= postgres(databaseUrl, {
-    max: 1,
-    prepare: false,
-    ssl: "require",
-    connect_timeout: 12,
-    idle_timeout: 5,
-  });
-  return database;
-}
 
 function initials(name: string) {
   return name

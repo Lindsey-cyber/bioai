@@ -396,6 +396,13 @@ const STORIES: Story[] = [
 ];
 
 const feedbackOptions: Feedback[] = ["太复杂", "太简单", "多来这种", "少来这种", "多举例子"];
+const feedbackEventTypes: Record<Feedback, string> = {
+  太复杂: "too_complex",
+  太简单: "too_simple",
+  多来这种: "more_like_this",
+  少来这种: "less_like_this",
+  多举例子: "more_examples",
+};
 
 const TOPIC_GROUPS = [
   { label: "AI 方法", items: ["基础模型", "生成式模型", "多模态学习", "科学机器学习", "AI Agents", "实验自动化"] },
@@ -412,6 +419,27 @@ function readLocal<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+async function fetchLiveFeed(mode: FeedMode) {
+  const response = await fetch(`/api/feed?mode=${mode}`, { cache: "no-store" });
+  if (!response.ok) throw new Error("Feed unavailable");
+  const payload = await response.json() as { stories?: Story[] };
+  return payload.stories || [];
+}
+
+async function persistFeedback(storyId: string, option: Feedback, active: boolean) {
+  const response = await fetch("/api/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      eventId: crypto.randomUUID(),
+      storyId,
+      eventType: feedbackEventTypes[option],
+      active,
+    }),
+  });
+  if (!response.ok) throw new Error("Feedback unavailable");
 }
 
 export default function Home() {
@@ -454,17 +482,13 @@ export default function Home() {
 
   useEffect(() => {
     let active = true;
-    fetch(`/api/feed?mode=${mode}`, { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok) throw new Error("Feed unavailable");
-        return response.json() as Promise<{ stories?: Story[] }>;
-      })
-      .then((payload) => {
-        if (!active || !payload.stories?.length) return;
-        setLiveStories(payload.stories);
+    fetchLiveFeed(mode)
+      .then((stories) => {
+        if (!active || !stories.length) return;
+        setLiveStories(stories);
         setSelectedStory((current) => {
-          if (!current || STORIES.some((story) => story.id === current.id)) return payload.stories![0];
-          return payload.stories!.find((story) => story.id === current.id) || payload.stories![0];
+          if (!current || STORIES.some((story) => story.id === current.id)) return stories[0];
+          return stories.find((story) => story.id === current.id) || stories[0];
         });
       })
       .catch(() => {
@@ -538,15 +562,31 @@ export default function Home() {
   };
 
   const applyFeedback = (storyId: string, option: Feedback) => {
-    setFeedback((current) => {
-      const chosen = current[storyId] || [];
-      const next = chosen.includes(option) ? chosen.filter((item) => item !== option) : [...chosen.filter((item) => {
-        if (["太复杂", "太简单"].includes(option)) return !["太复杂", "太简单"].includes(item);
-        if (["多来这种", "少来这种"].includes(option)) return !["多来这种", "少来这种"].includes(item);
-        return true;
-      }), option];
-      return { ...current, [storyId]: next };
+    const chosen = feedback[storyId] || [];
+    const active = !chosen.includes(option);
+    const conflicts = chosen.filter((item) => {
+      if (["太复杂", "太简单"].includes(option)) return ["太复杂", "太简单"].includes(item) && item !== option;
+      if (["多来这种", "少来这种"].includes(option)) return ["多来这种", "少来这种"].includes(item) && item !== option;
+      return false;
     });
+    const next = active
+      ? [...chosen.filter((item) => !conflicts.includes(item)), option]
+      : chosen.filter((item) => item !== option);
+    setFeedback((current) => ({ ...current, [storyId]: next }));
+
+    if (liveStories.some((story) => story.id === storyId)) {
+      void Promise.all([
+        ...conflicts.map((conflict) => persistFeedback(storyId, conflict, false)),
+        persistFeedback(storyId, option, active),
+      ])
+        .then(() => fetchLiveFeed(mode))
+        .then((stories) => {
+          if (!stories.length) return;
+          setLiveStories(stories);
+          setSelectedStory((current) => current ? stories.find((story) => story.id === current.id) || current : stories[0]);
+        })
+        .catch(() => showToast("本地已记录；云端偏好暂时未更新"));
+    }
     const message: Record<Feedback, string> = {
       太复杂: "已记住：解释会更浅显，主题偏好不变",
       太简单: "已记住：解释会更专业，主题偏好不变",

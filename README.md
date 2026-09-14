@@ -18,6 +18,8 @@
 
 一条工作流依次完成：RSS 抓取 → 规则初筛 → OpenAlex 作者/机构与 US/Europe hard filter → GPT-5.6 Luna 批量质量筛选 → 只对最高质量候选下载论文 PDF → GPT-5.6 Sol 预生成五段解释、限制与术语 → 写入 `stories` / `explanations`。模型响应不在 OpenAI 侧持久化（`store=false`），token 和估算成本写进数据库供 Debug 使用。
 
+Feed 底部的五个主动反馈会直接写入 `feedback_events`，并由服务端的确定性规则更新 `preference_profile`：解释深度与内容兴趣始终分开；“多来这种 / 少来这种”更新主题、作者、机构和来源 affinity，随后重新计算 Personal Relevance 和 For You 分数。此逻辑不交给 LLM。
+
 所有私钥只放在 GitHub/Vercel Secrets，不要提交到仓库，也不要粘贴到聊天中。完整变量说明见 `.env.example`。
 
 ## Pipeline 开发命令
@@ -55,7 +57,7 @@ npm run build
 ## 产品范围
 
 - Phase 1：可点击的 mock frontend（已完成）
-- Phase 2：PostgreSQL、feedback、preference 与 ranking
+- Phase 2：PostgreSQL、主动 feedback、preference 与 ranking（已跑通）
 - Phase 3：arXiv、bioRxiv、PubMed/OpenAlex 真实数据（arXiv adapter 已开始）
 - Phase 4：OpenAI Luna 初筛和 GPT-5.6 Sol 深度解释
 - Phase 5：作者、机构、代表论文与可靠照片
