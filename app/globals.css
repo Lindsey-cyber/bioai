@@ -13,7 +13,7 @@
   --blue: #86baff;
   --blue-soft: rgba(134, 186, 255, .09);
   --danger: #ff727c;
-  --mono: var(--font-geist-mono), "SFMono-Regular", Consolas, "PingFang SC", "Microsoft YaHei", monospace;
+  --mono: var(--font-jetbrains-mono), "JetBrains Mono", "Microsoft YaHei", "微软雅黑", "PingFang SC", monospace;
 }
 
 * { box-sizing: border-box; }
