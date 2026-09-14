@@ -16,6 +16,16 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--dry-run", action="store_true", help="Do not write to PostgreSQL")
     ingest.add_argument("--lookback-hours", type=int)
     ingest.add_argument("--max-results-per-query", type=int)
+    process = subparsers.add_parser(
+        "process-stories",
+        help="Enrich, triage, explain, rank, and publish pending papers",
+    )
+    process.add_argument(
+        "--max-papers",
+        type=int,
+        default=int(os.getenv("PROCESS_MAX_PAPERS", "60")),
+    )
+    process.add_argument("--max-sol-stories", type=int)
     return parser
 
 
@@ -34,8 +44,17 @@ def main() -> None:
             trigger=os.getenv("PIPELINE_TRIGGER", "manual"),
         )
         print(json.dumps(asdict(summary), ensure_ascii=False, indent=2))
+    elif args.command == "process-stories":
+        from bioai_pipeline.story_pipeline import run_story_processing
+
+        summary = run_story_processing(
+            settings,
+            trigger=os.getenv("PIPELINE_TRIGGER", "manual"),
+            max_papers=args.max_papers,
+            max_sol_stories=args.max_sol_stories,
+        )
+        print(json.dumps(asdict(summary), ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
     main()
-

@@ -69,6 +69,12 @@ ARXIV_RSS_FEEDS = {
     "aiml_with_bio": tuple(value.removeprefix("cat:") for value in AI_CATEGORIES),
 }
 
+# Product hard filter. Kept in configuration so the geography can change later.
+DEFAULT_ALLOWED_COUNTRY_CODES = (
+    "US,AL,AD,AT,BE,BG,BA,BY,CH,CY,CZ,DE,DK,EE,ES,FI,FR,GB,GR,HR,HU,IE,"
+    "IS,IT,LI,LT,LU,LV,MC,MD,ME,MK,MT,NL,NO,PL,PT,RO,RS,SE,SI,SK,SM,UA,VA"
+)
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -84,6 +90,18 @@ class Settings:
     sol_max_input_tokens: int
     prompt_version: str
     arxiv_discovery_mode: str
+    fast_reasoning_effort: str
+    deep_reasoning_effort: str
+    allowed_country_codes: frozenset[str]
+    openalex_match_threshold: float
+    openai_fast_input_cost_per_million: float
+    openai_fast_output_cost_per_million: float
+    openai_deep_input_cost_per_million: float
+    openai_deep_output_cost_per_million: float
+    rank_global_weight: float
+    rank_personal_weight: float
+    rank_freshness_weight: float
+    rank_confidence_weight: float
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -100,4 +118,33 @@ class Settings:
             sol_max_input_tokens=int(os.getenv("SOL_MAX_INPUT_TOKENS", "18000")),
             prompt_version=os.getenv("PROMPT_VERSION", "story-v1"),
             arxiv_discovery_mode=os.getenv("ARXIV_DISCOVERY_MODE", "rss"),
+            fast_reasoning_effort=os.getenv("OPENAI_FAST_REASONING_EFFORT", "none"),
+            deep_reasoning_effort=os.getenv(
+                "OPENAI_DEEP_REASONING_EFFORT",
+                os.getenv("OPENAI_REASONING_EFFORT", "medium"),
+            ),
+            allowed_country_codes=frozenset(
+                code.strip().upper()
+                for code in os.getenv(
+                    "ALLOWED_COUNTRY_CODES", DEFAULT_ALLOWED_COUNTRY_CODES
+                ).split(",")
+                if code.strip()
+            ),
+            openalex_match_threshold=float(os.getenv("OPENALEX_MATCH_THRESHOLD", "0.90")),
+            openai_fast_input_cost_per_million=float(
+                os.getenv("OPENAI_FAST_INPUT_COST_PER_MILLION", "0.20")
+            ),
+            openai_fast_output_cost_per_million=float(
+                os.getenv("OPENAI_FAST_OUTPUT_COST_PER_MILLION", "1.20")
+            ),
+            openai_deep_input_cost_per_million=float(
+                os.getenv("OPENAI_DEEP_INPUT_COST_PER_MILLION", "4.00")
+            ),
+            openai_deep_output_cost_per_million=float(
+                os.getenv("OPENAI_DEEP_OUTPUT_COST_PER_MILLION", "20.00")
+            ),
+            rank_global_weight=float(os.getenv("RANK_GLOBAL_WEIGHT", "0.55")),
+            rank_personal_weight=float(os.getenv("RANK_PERSONAL_WEIGHT", "0.30")),
+            rank_freshness_weight=float(os.getenv("RANK_FRESHNESS_WEIGHT", "0.10")),
+            rank_confidence_weight=float(os.getenv("RANK_CONFIDENCE_WEIGHT", "0.05")),
         )

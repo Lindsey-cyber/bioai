@@ -44,3 +44,34 @@ class HeuristicResult:
     topics: tuple[str, ...]
     matched_ai_terms: tuple[str, ...]
     matched_bio_terms: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PaperRecord:
+    id: str
+    arxiv_id: str
+    latest_version: int
+    title: str
+    abstract: str
+    authors: tuple[dict[str, Any], ...]
+    categories: tuple[str, ...]
+    published_at: datetime
+    abstract_url: str
+    pdf_url: str
+    geography_status: str
+    country_codes: tuple[str, ...]
+    processing_status: str
+    source_metadata: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class OpenAlexMetadata:
+    openalex_id: str
+    title: str
+    title_similarity: float
+    authors: tuple[dict[str, Any], ...]
+    institutions: tuple[dict[str, Any], ...]
+    country_codes: tuple[str, ...]
+    primary_location: dict[str, Any] | None
+    doi: str | None
+    raw: dict[str, Any]

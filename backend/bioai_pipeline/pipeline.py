@@ -94,8 +94,9 @@ def run_arxiv_ingest(
         with Repository(settings.database_url) as repository:
             run_id = repository.start_run(trigger, config)
             try:
+                for paper in unique:
+                    repository.save_raw(paper, run_id)
                 for candidate in accepted:
-                    repository.save_raw(candidate.paper, run_id)
                     repository.upsert_paper(candidate.paper, candidate.heuristic)
                 repository.finish_run(
                     run_id,
