@@ -66,7 +66,9 @@ def classify_with_rules(paper: ArxivPaper) -> HeuristicResult:
     text = f"{paper.title} {paper.abstract}".lower()
     ai_matches = tuple(sorted(term for term in AI_KEYWORDS if _contains(text, term)))
     bio_matches = tuple(sorted(term for term in BIO_KEYWORDS if _contains(text, term)))
-    qbio_category = any(category.startswith("q-bio.") for category in paper.categories)
+    qbio_category = paper.source == "biorxiv" or any(
+        category.startswith("q-bio.") for category in paper.categories
+    )
     ai_category = any(category in {"cs.AI", "cs.LG", "stat.ML", "cs.CV"} for category in paper.categories)
 
     accepted = bool((qbio_category and ai_matches) or (ai_category and bio_matches) or (ai_matches and bio_matches))

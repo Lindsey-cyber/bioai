@@ -142,12 +142,22 @@ def run_story_processing(
                     and fallback_count < settings.pdf_geography_fallback_limit
                 ):
                     try:
-                        first_page = pdf.fetch_text(
-                            paper.pdf_url,
-                            max_chars=16_000,
-                            max_pages=1,
+                        biorxiv_institution = (
+                            paper.source_metadata.get("source") == "biorxiv"
+                            and paper.source_metadata.get("corresponding_institution")
                         )
-                        if len(first_page) < 200:
+                        if biorxiv_institution:
+                            first_page = (
+                                "Corresponding author institution: "
+                                f"{paper.source_metadata['corresponding_institution']}"
+                            )
+                        else:
+                            first_page = pdf.fetch_text(
+                                paper.pdf_url,
+                                max_chars=16_000,
+                                max_pages=1,
+                            )
+                        if not biorxiv_institution and len(first_page) < 200:
                             raise RuntimeError("PDF first page text was unexpectedly short")
                         affiliation_texts[paper.arxiv_id] = first_page
                         fast_papers.append(paper)
@@ -204,11 +214,26 @@ def run_story_processing(
                     assessment = FastAssessment.model_validate(
                         paper.source_metadata["fast_assessment"]
                     )
-                    paper_text = pdf.fetch_text(paper.pdf_url, max_chars=max_chars)
-                    if len(paper_text) < 1_000:
+                    evidence_scope = "full_text"
+                    if paper.source_metadata.get("source") == "biorxiv":
+                        evidence_scope = "abstract_only"
+                        paper_text = f"Title: {paper.title}\n\nAbstract: {paper.abstract}"
+                    else:
+                        paper_text = pdf.fetch_text(paper.pdf_url, max_chars=max_chars)
+                    if len(paper_text) < (400 if evidence_scope == "abstract_only" else 1_000):
                         raise RuntimeError("Extracted PDF text was unexpectedly short")
-                    repository.save_pdf_text(paper, run_id, paper_text)
-                    deep_result = ai.explain(paper, assessment, paper_text)
+                    repository.save_pdf_text(
+                        paper,
+                        run_id,
+                        paper_text,
+                        scope=evidence_scope,
+                    )
+                    deep_result = ai.explain(
+                        paper,
+                        assessment,
+                        paper_text,
+                        evidence_scope=evidence_scope,
+                    )
                     explanation = deep_result.value
                     if not isinstance(explanation, StoryExplanation):
                         raise RuntimeError("Unexpected deep explanation result type")

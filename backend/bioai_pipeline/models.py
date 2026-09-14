@@ -29,6 +29,8 @@ class ArxivPaper:
     query_name: str
     raw_xml: str
     announce_type: str | None = None
+    source: str = "arxiv"
+    source_metadata: dict[str, Any] | None = None
 
     def raw_payload(self) -> dict[str, Any]:
         value = asdict(self)

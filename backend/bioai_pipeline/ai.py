@@ -168,7 +168,14 @@ class OpenAIProcessor:
             self.settings.openai_fast_output_cost_per_million,
         )
 
-    def explain(self, paper: PaperRecord, assessment: FastAssessment, paper_text: str) -> AiResult:
+    def explain(
+        self,
+        paper: PaperRecord,
+        assessment: FastAssessment,
+        paper_text: str,
+        *,
+        evidence_scope: str = "full_text",
+    ) -> AiResult:
         metadata = paper.source_metadata.get("openalex") or {}
         payload = {
             "arxiv_id": paper.arxiv_id,
@@ -176,6 +183,8 @@ class OpenAIProcessor:
             "abstract": paper.abstract,
             "authors_and_institutions": metadata.get("authors", []),
             "topics": assessment.topics,
+            "source": paper.source_metadata.get("source", "arxiv"),
+            "evidence_scope": evidence_scope,
             "paper_text": paper_text,
         }
         response = self.client.responses.parse(
@@ -188,7 +197,9 @@ class OpenAIProcessor:
                 "should be a precise longer Chinese paragraph that introduces English technical "
                 "terms naturally. Separate measured results from hypotheses, state computational "
                 "versus wet-lab or clinical validation explicitly, and never exaggerate. Include "
-                "limitations whenever evidence is incomplete. Terminology must include only terms "
+                "limitations whenever evidence is incomplete. If evidence_scope is abstract_only, "
+                "state clearly that the explanation could not verify details beyond the abstract. "
+                "Terminology must include only terms "
                 "important for understanding this paper; use an empty abbreviation when none exists."
             ),
             input=json.dumps(payload, ensure_ascii=False),

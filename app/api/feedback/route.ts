@@ -27,6 +27,7 @@ type StoryContext = {
   topics: string[];
   authors: JsonObject[];
   affiliations: JsonObject[];
+  source: string;
 };
 
 type ProfileRow = {
@@ -85,7 +86,7 @@ function personalRelevance(profile: ProfileRow, story: RankingRow) {
     [numberSetting("PERSONAL_TOPIC_WEIGHT", 0.5), affinityScore(profile.topic_affinity, story.topics || [])],
     [numberSetting("PERSONAL_AUTHOR_WEIGHT", 0.2), affinityScore(profile.author_affinity, authorKeys(story.authors || []))],
     [numberSetting("PERSONAL_INSTITUTION_WEIGHT", 0.2), affinityScore(profile.institution_affinity, institutionKeys(story))],
-    [numberSetting("PERSONAL_SOURCE_WEIGHT", 0.1), affinityScore(profile.source_affinity, ["arxiv"])],
+    [numberSetting("PERSONAL_SOURCE_WEIGHT", 0.1), affinityScore(profile.source_affinity, [story.source || "arxiv"])],
   ] as const;
   const available = signals.filter((signal): signal is readonly [number, number] => signal[1] !== null);
   const totalWeight = available.reduce((total, [weight]) => total + weight, 0);
@@ -119,7 +120,8 @@ export async function POST(request: NextRequest) {
       // TransactionSql type loses the tagged-template signature through Omit.
       const tx = transaction as unknown as typeof sql;
       const contexts = await tx`
-        select papers.topics, papers.authors, papers.affiliations
+        select papers.topics, papers.authors, papers.affiliations,
+               coalesce(papers.source_metadata->>'source', 'arxiv') as source
         from stories
         join papers on papers.id = stories.paper_id
         where stories.id = ${storyId}
@@ -171,7 +173,7 @@ export async function POST(request: NextRequest) {
         bump(profile.topic_affinity, context.topics || [], delta);
         bump(profile.author_affinity, authorKeys(context.authors || []), delta);
         bump(profile.institution_affinity, institutionKeys(context), delta);
-        bump(profile.source_affinity, ["arxiv"], delta);
+        bump(profile.source_affinity, [context.source || "arxiv"], delta);
       }
 
       await tx`
@@ -191,7 +193,8 @@ export async function POST(request: NextRequest) {
                stories.global_importance::float8,
                stories.freshness::float8,
                stories.confidence::float8,
-               papers.topics, papers.authors, papers.affiliations
+               papers.topics, papers.authors, papers.affiliations,
+               coalesce(papers.source_metadata->>'source', 'arxiv') as source
         from stories
         join papers on papers.id = stories.paper_id
         where stories.status = 'published'

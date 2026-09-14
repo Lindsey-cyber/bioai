@@ -166,10 +166,11 @@ function transformRow(row: FeedRow) {
   const sources = row.sources?.length
     ? row.sources
     : [{ label: "arXiv", url: row.abstract_url, is_original: true }];
+  const originalSource = sources.find((source) => source.is_original) || sources[0];
 
   return {
     id: row.id,
-    source: "arXiv",
+    source: originalSource?.label || "Original source",
     sourceType: "preprint",
     age: formatAge(row.published_at),
     date: new Date(row.published_at).toISOString().slice(0, 10),
@@ -190,7 +191,7 @@ function transformRow(row: FeedRow) {
     institutionDetails: institutions,
     sources: sources.map((source) => source.label),
     sourceLinks: sources,
-    originalUrl: sources.find((source) => source.is_original)?.url || row.abstract_url,
+    originalUrl: originalSource?.url || row.abstract_url,
     exploration: Boolean(row.is_exploration),
   };
 }

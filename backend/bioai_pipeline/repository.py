@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from contextlib import AbstractContextManager
 from typing import Any
 
@@ -92,7 +93,7 @@ class Repository(AbstractContextManager["Repository"]):
                     source, source_item_id, source_version, pipeline_run_id,
                     payload_sha256, raw_payload, processing_status
                 )
-                VALUES ('arxiv', %s, %s, %s, %s, %s, 'fetched')
+                VALUES (%s, %s, %s, %s, %s, %s, 'fetched')
                 ON CONFLICT (source, source_item_id, source_version)
                 DO UPDATE SET
                     last_seen_at = now(),
@@ -101,6 +102,7 @@ class Repository(AbstractContextManager["Repository"]):
                     raw_payload = EXCLUDED.raw_payload
                 """,
                 (
+                    paper.source,
                     paper.arxiv_id,
                     paper.version,
                     run_id,
@@ -169,6 +171,8 @@ class Repository(AbstractContextManager["Repository"]):
                     result.relevance,
                     Jsonb(
                         {
+                            "source": paper.source,
+                            **(paper.source_metadata or {}),
                             "query_name": paper.query_name,
                             "matched_ai_terms": result.matched_ai_terms,
                             "matched_bio_terms": result.matched_bio_terms,
@@ -402,8 +406,16 @@ class Repository(AbstractContextManager["Repository"]):
             )
         return geography_status
 
-    def save_pdf_text(self, paper: PaperRecord, run_id: str, text: str) -> None:
-        payload = {"url": paper.pdf_url, "text": text}
+    def save_pdf_text(
+        self,
+        paper: PaperRecord,
+        run_id: str,
+        text: str,
+        *,
+        scope: str = "full_text",
+    ) -> None:
+        source = str(paper.source_metadata.get("source") or "arxiv")
+        payload = {"url": paper.pdf_url, "text": text, "scope": scope}
         payload_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
         with self.connection.cursor() as cursor:
             cursor.execute(
@@ -412,7 +424,7 @@ class Repository(AbstractContextManager["Repository"]):
                     source, source_item_id, source_version, pipeline_run_id,
                     payload_sha256, raw_payload, processing_status
                 )
-                VALUES ('arxiv_pdf_text', %s, %s, %s, %s, %s, 'fetched')
+                VALUES (%s, %s, %s, %s, %s, %s, 'fetched')
                 ON CONFLICT (source, source_item_id, source_version)
                 DO UPDATE SET
                     last_seen_at = now(),
@@ -423,6 +435,7 @@ class Repository(AbstractContextManager["Repository"]):
                     processing_error = NULL
                 """,
                 (
+                    f"{source}_article_text",
                     paper.arxiv_id,
                     paper.latest_version,
                     run_id,
@@ -454,7 +467,13 @@ class Repository(AbstractContextManager["Repository"]):
         freshness: float,
         final_score: float,
     ) -> str:
-        slug = f"arxiv-{paper.arxiv_id.replace('.', '-')}"
+        source = str(paper.source_metadata.get("source") or "arxiv").lower()
+        source_label = "bioRxiv" if source == "biorxiv" else "arXiv"
+        source_external_id = str(
+            paper.source_metadata.get("source_external_id") or paper.arxiv_id
+        )
+        slug_id = re.sub(r"[^a-z0-9]+", "-", source_external_id.lower()).strip("-")
+        slug = f"{source}-{slug_id}"
         content = {
             "title_zh": explanation.title_zh,
             "sections": explanation.sections.model_dump(mode="json"),
@@ -500,11 +519,18 @@ class Repository(AbstractContextManager["Repository"]):
                     INSERT INTO story_sources (
                         story_id, source_type, label, url, external_id, is_original
                     )
-                    VALUES (%s, 'arxiv', 'arXiv', %s, %s, true)
+                    VALUES (%s, %s, %s, %s, %s, true)
                     ON CONFLICT (story_id, url)
-                    DO UPDATE SET is_original = true, label = 'arXiv'
+                    DO UPDATE SET is_original = true, label = EXCLUDED.label,
+                                  source_type = EXCLUDED.source_type
                     """,
-                    (story_id, paper.abstract_url, paper.arxiv_id),
+                    (
+                        story_id,
+                        source,
+                        source_label,
+                        paper.abstract_url,
+                        source_external_id,
+                    ),
                 )
                 cursor.execute(
                     """

@@ -90,6 +90,7 @@ class Settings:
     sol_max_input_tokens: int
     prompt_version: str
     arxiv_discovery_mode: str
+    biorxiv_max_results: int
     fast_reasoning_effort: str
     deep_reasoning_effort: str
     allowed_country_codes: frozenset[str]
@@ -119,6 +120,7 @@ class Settings:
             sol_max_input_tokens=int(os.getenv("SOL_MAX_INPUT_TOKENS", "18000")),
             prompt_version=os.getenv("PROMPT_VERSION", "story-v1"),
             arxiv_discovery_mode=os.getenv("ARXIV_DISCOVERY_MODE", "rss"),
+            biorxiv_max_results=int(os.getenv("BIORXIV_MAX_RESULTS", "600")),
             fast_reasoning_effort=os.getenv("OPENAI_FAST_REASONING_EFFORT", "none"),
             deep_reasoning_effort=os.getenv(
                 "OPENAI_DEEP_REASONING_EFFORT",

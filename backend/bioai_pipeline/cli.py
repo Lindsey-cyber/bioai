@@ -16,6 +16,13 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--dry-run", action="store_true", help="Do not write to PostgreSQL")
     ingest.add_argument("--lookback-hours", type=int)
     ingest.add_argument("--max-results-per-query", type=int)
+    biorxiv = subparsers.add_parser(
+        "ingest-biorxiv",
+        help="Fetch and normalize recent bioRxiv papers",
+    )
+    biorxiv.add_argument("--dry-run", action="store_true")
+    biorxiv.add_argument("--lookback-hours", type=int)
+    biorxiv.add_argument("--max-results", type=int)
     process = subparsers.add_parser(
         "process-stories",
         help="Enrich, triage, explain, rank, and publish pending papers",
@@ -42,6 +49,19 @@ def main() -> None:
                 max_results_per_query=args.max_results_per_query,
             )
         summary = run_arxiv_ingest(
+            settings,
+            dry_run=args.dry_run,
+            trigger=os.getenv("PIPELINE_TRIGGER", "manual"),
+        )
+        print(json.dumps(asdict(summary), ensure_ascii=False, indent=2))
+    elif args.command == "ingest-biorxiv":
+        from bioai_pipeline.biorxiv_pipeline import run_biorxiv_ingest
+
+        if args.lookback_hours is not None:
+            settings = replace(settings, lookback_hours=args.lookback_hours)
+        if args.max_results is not None:
+            settings = replace(settings, biorxiv_max_results=args.max_results)
+        summary = run_biorxiv_ingest(
             settings,
             dry_run=args.dry_run,
             trigger=os.getenv("PIPELINE_TRIGGER", "manual"),
