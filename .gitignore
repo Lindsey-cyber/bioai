@@ -6,6 +6,9 @@ dist/
 coverage/
 *.tsbuildinfo
 *.log
+__pycache__/
+*.py[cod]
+.venv/
 
 .env
 .env.*
@@ -13,4 +16,3 @@ coverage/
 
 .DS_Store
 *.zip
-
