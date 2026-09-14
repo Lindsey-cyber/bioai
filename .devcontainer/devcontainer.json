@@ -1,6 +1,6 @@
 {
   "name": "AI x Bio Feed",
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-24-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
   "postCreateCommand": "npm ci --ignore-scripts --no-audit --no-fund",
   "forwardPorts": [3000],
   "portsAttributes": {
