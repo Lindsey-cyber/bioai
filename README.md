@@ -2,7 +2,7 @@
 
 一个面向个人使用的 AI × Bio 新闻 Feed。目标是用极简的阅读流程，帮助用户快速理解美国和欧洲的重要论文、公司、机构与研究者动态。
 
-当前完成的是 Phase 1 可点击前端，并已开始接入最小云端数据架构：Vercel 承载 Next.js，Supabase 承载 PostgreSQL，GitHub Actions 每天运行 Python pipeline。第一版不需要常驻服务器、Redis 或 Celery。
+当前已完成 Phase 1 可点击前端，并跑通第一条真实数据链路：Vercel 承载 Next.js 和只读 Feed API，Supabase 承载 PostgreSQL，GitHub Actions 每天运行 Python pipeline。第一版不需要常驻服务器、Redis 或 Celery。
 
 ## 最小云端配置
 
@@ -13,7 +13,8 @@
    - `DATABASE_URL`
    - `OPENAI_API_KEY`
    - `OPENALEX_API_KEY`
-5. 在 Actions 页面手动运行一次 **Ingest arXiv**。首次保持 `max_sol_stories=1`，用于低成本验证整条链路。确认无误后，工作流会每天美国东部时间 00:17 自动执行，定时任务最多深度处理 6 篇。每日发现默认使用 arXiv 官方 RSS/Atom；搜索 API 只保留为可选补抓方式，避免 GitHub 共享 IP 的 429 限流。
+5. 在 Vercel 项目的 **Settings → Environment Variables** 添加同一个 `DATABASE_URL`，勾选 Production、Preview 和 Development，然后重新部署。它只在服务端读取 Supabase，不会发送到浏览器。
+6. 在 Actions 页面手动运行一次 **Ingest arXiv**。首次保持 `max_sol_stories=1`，用于低成本验证整条链路。确认无误后，工作流会每天美国东部时间 00:17 自动执行，定时任务最多深度处理 6 篇。每日发现默认使用 arXiv 官方 RSS/Atom；搜索 API 只保留为可选补抓方式，避免 GitHub 共享 IP 的 429 限流。
 
 一条工作流依次完成：RSS 抓取 → 规则初筛 → OpenAlex 作者/机构与 US/Europe hard filter → GPT-5.6 Luna 批量质量筛选 → 只对最高质量候选下载论文 PDF → GPT-5.6 Sol 预生成五段解释、限制与术语 → 写入 `stories` / `explanations`。模型响应不在 OpenAI 侧持久化（`store=false`），token 和估算成本写进数据库供 Debug 使用。
 

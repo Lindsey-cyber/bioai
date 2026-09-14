@@ -57,11 +57,16 @@ type Story = {
   topics: string[];
   importance: number;
   relevance: number;
+  finalScore?: number;
   sections: Section[];
   limitation?: string;
   authors: string[];
   institutions: string[];
+  people?: Person[];
+  institutionDetails?: Institution[];
   sources: string[];
+  sourceLinks?: { label: string; url: string; isOriginal?: boolean; is_original?: boolean }[];
+  originalUrl?: string;
   exploration?: boolean;
 };
 
@@ -429,6 +434,7 @@ export default function Home() {
   const [topics, setTopics] = useState(["蛋白质设计", "药物发现", "单细胞", "NeuroAI"]);
   const [sources, setSources] = useState(["arXiv", "bioRxiv", "PubMed"]);
   const [hydrated, setHydrated] = useState(false);
+  const [liveStories, setLiveStories] = useState<Story[]>([]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -445,6 +451,28 @@ export default function Home() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/feed?mode=${mode}`, { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Feed unavailable");
+        return response.json() as Promise<{ stories?: Story[] }>;
+      })
+      .then((payload) => {
+        if (!active || !payload.stories?.length) return;
+        setLiveStories(payload.stories);
+        setSelectedStory((current) => {
+          if (!current || STORIES.some((story) => story.id === current.id)) return payload.stories![0];
+          return payload.stories!.find((story) => story.id === current.id) || payload.stories![0];
+        });
+      })
+      .catch(() => {
+        // The mock feed remains available when DATABASE_URL has not yet been
+        // added to Vercel or Supabase is temporarily unreachable.
+      });
+    return () => { active = false; };
+  }, [mode]);
 
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:saved-stories", JSON.stringify(savedStories)); }, [savedStories, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:saved-people", JSON.stringify(savedPeople)); }, [savedPeople, hydrated]);
@@ -477,9 +505,30 @@ export default function Home() {
     return () => window.removeEventListener("keydown", close);
   }, [selectedTerm, selectedPerson, selectedInstitution]);
 
+  const availableStories = liveStories.length > 0 ? liveStories : STORIES;
+  const availablePeople = useMemo(() => {
+    const people = [...PEOPLE];
+    for (const story of availableStories) {
+      for (const person of story.people || []) {
+        if (!people.some((item) => item.id === person.id)) people.push(person);
+      }
+    }
+    return people;
+  }, [availableStories]);
+  const availableInstitutions = useMemo(() => {
+    const institutions = [...INSTITUTIONS];
+    for (const story of availableStories) {
+      for (const institution of story.institutionDetails || []) {
+        if (!institutions.some((item) => item.id === institution.id)) institutions.push(institution);
+      }
+    }
+    return institutions;
+  }, [availableStories]);
   const feedStories = useMemo(() => {
-    return [...STORIES].sort((a, b) => mode === "latest" ? b.date.localeCompare(a.date) || b.id.localeCompare(a.id) : ((b.importance * .55 + b.relevance * .30) - (a.importance * .55 + a.relevance * .30)));
-  }, [mode]);
+    return [...availableStories].sort((a, b) => mode === "latest"
+      ? b.date.localeCompare(a.date) || b.id.localeCompare(a.id)
+      : ((b.finalScore ?? b.importance * .55 + b.relevance * .30) - (a.finalScore ?? a.importance * .55 + a.relevance * .30)));
+  }, [availableStories, mode]);
 
   const showToast = (message: string) => setToast(message);
   const toggleArray = (value: string, current: string[], setter: (next: string[]) => void, label: string) => {
@@ -510,7 +559,7 @@ export default function Home() {
 
   const navigate = (next: View) => {
     setView(next);
-    setSelectedStory(next === "feed" ? STORIES[0] : null);
+    setSelectedStory(next === "feed" ? availableStories[0] : null);
     setStoryMobileOpen(false);
     setSelectedPerson(null);
     setSelectedInstitution(null);
@@ -527,7 +576,7 @@ export default function Home() {
       <aside className="desktop-sidebar" aria-label="主导航">
         <Brand />
         <nav className="side-nav">
-          <NavButton active={view === "feed"} label="Feed" count="04" onClick={() => navigate("feed")} />
+          <NavButton active={view === "feed"} label="Feed" count={String(feedStories.length).padStart(2, "0")} onClick={() => navigate("feed")} />
           <NavButton active={view === "saved"} label="Saved" count={String(savedStories.length + savedPeople.length + savedInstitutions.length).padStart(2, "0")} onClick={() => navigate("saved")} />
           <NavButton active={view === "settings"} label="Settings" onClick={() => navigate("settings")} />
         </nav>
@@ -590,8 +639,8 @@ export default function Home() {
                   onSave={() => toggleArray(story.id, savedStories, setSavedStories, " Story")}
                   onFeedback={(option) => applyFeedback(story.id, option)}
                   onTerm={setSelectedTerm}
-                  onPerson={(id) => setSelectedPerson(PEOPLE.find((person) => person.id === id) || null)}
-                  onInstitution={(id) => setSelectedInstitution(INSTITUTIONS.find((institution) => institution.id === id) || null)}
+                  onPerson={(id) => setSelectedPerson(availablePeople.find((person) => person.id === id) || null)}
+                  onInstitution={(id) => setSelectedInstitution(availableInstitutions.find((institution) => institution.id === id) || null)}
                 />
               ))}
             </div>
@@ -605,6 +654,9 @@ export default function Home() {
             storyIds={savedStories}
             peopleIds={savedPeople}
             institutionIds={savedInstitutions}
+            stories={availableStories}
+            people={availablePeople}
+            institutions={availableInstitutions}
             onStory={openStory}
             onPerson={setSelectedPerson}
             onInstitution={setSelectedInstitution}
@@ -636,8 +688,8 @@ export default function Home() {
             onSave={() => toggleArray(selectedStory.id, savedStories, setSavedStories, " Story")}
             onFeedback={(option) => applyFeedback(selectedStory.id, option)}
             onTerm={setSelectedTerm}
-            onPerson={(id) => setSelectedPerson(PEOPLE.find((person) => person.id === id) || null)}
-            onInstitution={(id) => setSelectedInstitution(INSTITUTIONS.find((institution) => institution.id === id) || null)}
+            onPerson={(id) => setSelectedPerson(availablePeople.find((person) => person.id === id) || null)}
+            onInstitution={(id) => setSelectedInstitution(availableInstitutions.find((institution) => institution.id === id) || null)}
           />
         </Drawer>
       )}
@@ -648,8 +700,9 @@ export default function Home() {
             person={selectedPerson}
             isSaved={savedPeople.includes(selectedPerson.id)}
             onSave={() => toggleArray(selectedPerson.id, savedPeople, setSavedPeople, " People")}
-            onInstitution={() => setSelectedInstitution(INSTITUTIONS.find((item) => item.name === selectedPerson.institution) || null)}
+            onInstitution={() => setSelectedInstitution(availableInstitutions.find((item) => item.name === selectedPerson.institution) || null)}
             onStory={(story) => { setSelectedPerson(null); openStory(story); }}
+            stories={availableStories}
           />
         </Drawer>
       )}
@@ -662,6 +715,8 @@ export default function Home() {
             onSave={() => toggleArray(selectedInstitution.id, savedInstitutions, setSavedInstitutions, " Institution")}
             onPerson={(person) => { setSelectedInstitution(null); setSelectedPerson(person); }}
             onStory={(story) => { setSelectedInstitution(null); openStory(story); }}
+            stories={availableStories}
+            people={availablePeople}
           />
         </Drawer>
       )}
@@ -734,22 +789,24 @@ function StoryCard({ story, index, isSaved, selectedFeedback, onOpen, onSave, on
 
       {story.limitation && <div className="warning-compact"><b>⚠ 注意</b><span>{story.limitation}</span></div>}
 
-      <div className="entity-row">
+      {story.institutions.length > 0 && <div className="entity-row">
         <span className="entity-label">机构</span>
         <div>{story.institutions.map((id) => {
-          const institution = INSTITUTIONS.find((item) => item.id === id)!;
+          const institution = story.institutionDetails?.find((item) => item.id === id) || INSTITUTIONS.find((item) => item.id === id);
+          if (!institution) return null;
           return <button className="chip" key={id} onClick={() => onInstitution(id)}>{institution.name}</button>;
         })}</div>
-      </div>
-      <div className="entity-row">
+      </div>}
+      {story.authors.length > 0 && <div className="entity-row">
         <span className="entity-label">作者</span>
         <div>{story.authors.map((id) => {
-          const person = PEOPLE.find((item) => item.id === id)!;
+          const person = story.people?.find((item) => item.id === id) || PEOPLE.find((item) => item.id === id);
+          if (!person) return null;
           return <button className="person-chip" key={id} onClick={() => onPerson(id)}><Avatar initials={person.initials} small /><span>{person.name}<small>{person.institution}</small></span></button>;
         })}</div>
-      </div>
+      </div>}
 
-      <div className="source-row"><span>SOURCES</span>{story.sources.map((source, i) => <button key={source} onClick={() => showExternalDemo(source)}>{i === 0 ? "↗ " : ""}{source}</button>)}</div>
+      <div className="source-row"><span>SOURCES</span>{story.sources.map((source, i) => <button key={source} onClick={() => openStorySource(story, i)}>{i === 0 ? "↗ " : ""}{source}</button>)}</div>
       <FeedbackBar selected={selectedFeedback} onFeedback={onFeedback} />
       <button className="open-story" onClick={onOpen}>阅读全文 <span>→</span></button>
     </article>
@@ -778,7 +835,7 @@ function StoryDetail({ story, isSaved, selectedFeedback, onSave, onFeedback, onT
         <div className="topic-row">{story.topics.map((topic) => <span key={topic}>{topic}</span>)}</div>
       </div>
       <div className="original-actions">
-        <button onClick={() => showExternalDemo("Original Source")}>↗ Original Source</button>
+        <button onClick={() => openOriginalSource(story)}>↗ Original Source</button>
         <button onClick={onSave}>{isSaved ? "★ Saved" : "☆ Save"}</button>
       </div>
       <div className="detail-sections">
@@ -802,21 +859,23 @@ function StoryDetail({ story, isSaved, selectedFeedback, onSave, onFeedback, onT
         })}
       </div>
       {story.limitation && <div className="warning-box"><strong>⚠ 注意</strong><p>{story.limitation}</p></div>}
-      <section className="detail-entities">
+      {story.authors.length > 0 && <section className="detail-entities">
         <p className="eyebrow">CORE AUTHORS</p>
         {story.authors.map((id) => {
-          const person = PEOPLE.find((item) => item.id === id)!;
+          const person = story.people?.find((item) => item.id === id) || PEOPLE.find((item) => item.id === id);
+          if (!person) return null;
           return <button className="entity-card" key={id} onClick={() => onPerson(id)}><Avatar initials={person.initials} /><span><b>{person.name}</b><small>{person.role} · {person.institution}</small><em>{person.focus.join(" · ")}</em></span><i>→</i></button>;
         })}
-      </section>
-      <section className="detail-entities">
+      </section>}
+      {story.institutions.length > 0 && <section className="detail-entities">
         <p className="eyebrow">INSTITUTIONS</p>
         <div className="institution-buttons">{story.institutions.map((id) => {
-          const institution = INSTITUTIONS.find((item) => item.id === id)!;
+          const institution = story.institutionDetails?.find((item) => item.id === id) || INSTITUTIONS.find((item) => item.id === id);
+          if (!institution) return null;
           return <button key={id} onClick={() => onInstitution(id)}><b>{institution.short}</b><span>{institution.name}<small>{institution.location}</small></span><i>→</i></button>;
         })}</div>
-      </section>
-      <div className="source-stack"><p className="eyebrow">STORY CLUSTER · {story.sources.length} SOURCES</p>{story.sources.map((source, i) => <button key={source} onClick={() => showExternalDemo(source)}><span>{i === 0 ? "ORIGINAL" : String(i + 1).padStart(2, "0")}</span><b>{source}</b><i>↗</i></button>)}</div>
+      </section>}
+      <div className="source-stack"><p className="eyebrow">STORY CLUSTER · {story.sources.length} SOURCES</p>{story.sources.map((source, i) => <button key={source} onClick={() => openStorySource(story, i)}><span>{i === 0 ? "ORIGINAL" : String(i + 1).padStart(2, "0")}</span><b>{source}</b><i>↗</i></button>)}</div>
       <div className="detail-feedback"><p>这条解释对你有帮助吗？</p><FeedbackBar selected={selectedFeedback} onFeedback={onFeedback} /></div>
     </div>
   );
@@ -854,8 +913,8 @@ function TermModal({ term, onClose }: { term: Term; onClose: () => void }) {
   );
 }
 
-function PersonProfile({ person, isSaved, onSave, onInstitution, onStory }: { person: Person; isSaved: boolean; onSave: () => void; onInstitution: () => void; onStory: (story: Story) => void }) {
-  const related = STORIES.filter((story) => story.authors.includes(person.id));
+function PersonProfile({ person, isSaved, onSave, onInstitution, onStory, stories }: { person: Person; isSaved: boolean; onSave: () => void; onInstitution: () => void; onStory: (story: Story) => void; stories: Story[] }) {
+  const related = stories.filter((story) => story.authors.includes(person.id));
   return (
     <div className="profile-content">
       <div className="profile-hero"><Avatar initials={person.initials} /><div><h2>{person.name}</h2><p>{person.role}</p><button onClick={onInstitution}>{person.institution} →</button></div></div>
@@ -869,8 +928,8 @@ function PersonProfile({ person, isSaved, onSave, onInstitution, onStory }: { pe
   );
 }
 
-function InstitutionProfile({ institution, isSaved, onSave, onPerson, onStory }: { institution: Institution; isSaved: boolean; onSave: () => void; onPerson: (person: Person) => void; onStory: (story: Story) => void }) {
-  const related = STORIES.filter((story) => story.institutions.includes(institution.id));
+function InstitutionProfile({ institution, isSaved, onSave, onPerson, onStory, stories, people }: { institution: Institution; isSaved: boolean; onSave: () => void; onPerson: (person: Person) => void; onStory: (story: Story) => void; stories: Story[]; people: Person[] }) {
+  const related = stories.filter((story) => story.institutions.includes(institution.id));
   return (
     <div className="profile-content">
       <div className="institution-hero"><span>{institution.short}</span><div><p className="eyebrow">{institution.kind}</p><h2>{institution.name}</h2><p>{institution.location}</p></div></div>
@@ -879,7 +938,8 @@ function InstitutionProfile({ institution, isSaved, onSave, onPerson, onStory }:
       <ProfileSection label="AI × Bio 主要方向"><p>{institution.direction}</p></ProfileSection>
       <ProfileSection label="为什么值得认识"><p>{institution.why}</p></ProfileSection>
       <ProfileSection label="核心研究者"><div className="mini-people">{institution.researchers.map((id) => {
-        const person = PEOPLE.find((item) => item.id === id)!;
+        const person = people.find((item) => item.id === id);
+        if (!person) return null;
         return <button key={id} onClick={() => onPerson(person)}><Avatar initials={person.initials} small /><span><b>{person.name}</b><small>{person.focus.join(" · ")}</small></span><i>→</i></button>;
       })}</div></ProfileSection>
       <ProfileSection label="最近相关 Story"><div className="related-list">{related.map((story) => <button key={story.id} onClick={() => onStory(story)}><span>{story.source}</span><b>{story.titleZh}</b><i>→</i></button>)}</div></ProfileSection>
@@ -891,8 +951,8 @@ function ProfileSection({ label, children }: { label: string; children: React.Re
   return <section className="profile-section"><p className="eyebrow">{label}</p>{children}</section>;
 }
 
-function SavedView({ tab, setTab, storyIds, peopleIds, institutionIds, onStory, onPerson, onInstitution }: {
-  tab: "stories" | "people" | "institutions"; setTab: (tab: "stories" | "people" | "institutions") => void; storyIds: string[]; peopleIds: string[]; institutionIds: string[]; onStory: (story: Story) => void; onPerson: (person: Person) => void; onInstitution: (institution: Institution) => void;
+function SavedView({ tab, setTab, storyIds, peopleIds, institutionIds, stories, people, institutions, onStory, onPerson, onInstitution }: {
+  tab: "stories" | "people" | "institutions"; setTab: (tab: "stories" | "people" | "institutions") => void; storyIds: string[]; peopleIds: string[]; institutionIds: string[]; stories: Story[]; people: Person[]; institutions: Institution[]; onStory: (story: Story) => void; onPerson: (person: Person) => void; onInstitution: (institution: Institution) => void;
 }) {
   const empty = tab === "stories" ? storyIds.length === 0 : tab === "people" ? peopleIds.length === 0 : institutionIds.length === 0;
   return (
@@ -905,9 +965,9 @@ function SavedView({ tab, setTab, storyIds, peopleIds, institutionIds, onStory, 
       </div>
       {empty && <div className="empty-state"><span>☆</span><h2>还没有收藏</h2><p>在 Feed 里点星标，内容就会出现在这里。</p></div>}
       <div className="saved-list">
-        {tab === "stories" && storyIds.map((id) => { const story = STORIES.find((item) => item.id === id)!; return <button key={id} onClick={() => onStory(story)}><span className="saved-source">{story.source}</span><b>{story.title}</b><small>{story.titleZh}</small><i>→</i></button>; })}
-        {tab === "people" && peopleIds.map((id) => { const person = PEOPLE.find((item) => item.id === id)!; return <button key={id} onClick={() => onPerson(person)}><Avatar initials={person.initials} /><span><b>{person.name}</b><small>{person.role} · {person.institution}</small></span><i>→</i></button>; })}
-        {tab === "institutions" && institutionIds.map((id) => { const institution = INSTITUTIONS.find((item) => item.id === id)!; return <button key={id} onClick={() => onInstitution(institution)}><span className="institution-avatar">{institution.short}</span><span><b>{institution.name}</b><small>{institution.location}</small></span><i>→</i></button>; })}
+        {tab === "stories" && storyIds.map((id) => { const story = stories.find((item) => item.id === id); return story ? <button key={id} onClick={() => onStory(story)}><span className="saved-source">{story.source}</span><b>{story.title}</b><small>{story.titleZh}</small><i>→</i></button> : null; })}
+        {tab === "people" && peopleIds.map((id) => { const person = people.find((item) => item.id === id); return person ? <button key={id} onClick={() => onPerson(person)}><Avatar initials={person.initials} /><span><b>{person.name}</b><small>{person.role} · {person.institution}</small></span><i>→</i></button> : null; })}
+        {tab === "institutions" && institutionIds.map((id) => { const institution = institutions.find((item) => item.id === id); return institution ? <button key={id} onClick={() => onInstitution(institution)}><span className="institution-avatar">{institution.short}</span><span><b>{institution.name}</b><small>{institution.location}</small></span><i>→</i></button> : null; })}
       </div>
     </div>
   );
@@ -954,6 +1014,24 @@ function ChoiceRow({ values, selected, onSelect }: { values: { id: string; label
 
 function ToggleChips({ items, selected, onToggle }: { items: string[]; selected: string[]; onToggle: (item: string) => void }) {
   return <div className="toggle-chips">{items.map((item) => <button key={item} className={selected.includes(item) ? "active" : ""} onClick={() => onToggle(item)}><span>{selected.includes(item) ? "✓" : "+"}</span>{item}</button>)}</div>;
+}
+
+function openStorySource(story: Story, index: number) {
+  const link = story.sourceLinks?.[index];
+  if (link?.url) {
+    window.open(link.url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  showExternalDemo(story.sources[index] || "Source");
+}
+
+function openOriginalSource(story: Story) {
+  const original = story.originalUrl || story.sourceLinks?.find((link) => link.isOriginal || link.is_original)?.url;
+  if (original) {
+    window.open(original, "_blank", "noopener,noreferrer");
+    return;
+  }
+  showExternalDemo("Original Source");
 }
 
 function showExternalDemo(source: string) {
