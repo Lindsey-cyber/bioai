@@ -58,6 +58,9 @@ jobs:
       - name: Fetch and store recent papers
         run: python -m bioai_pipeline.cli ingest-arxiv
       - name: Fetch and store recent bioRxiv papers
+        # bioRxiv's public API occasionally times out from GitHub runners.
+        # Do not prevent already-stored candidates from being processed.
+        continue-on-error: true
         run: python -m bioai_pipeline.cli ingest-biorxiv
       - name: Enrich and publish stories
         run: python -m bioai_pipeline.cli process-stories

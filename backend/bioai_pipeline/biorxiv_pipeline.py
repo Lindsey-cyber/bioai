@@ -34,7 +34,7 @@ def run_biorxiv_ingest(
         config = {
             "lookback_hours": settings.lookback_hours,
             "max_results": settings.biorxiv_max_results,
-            "endpoint": "official_details_api",
+            "endpoint": "official_details_api_with_crossref_fallback",
         }
         with Repository(settings.database_url) as repository:
             run_id = repository.start_run(trigger, config, source="biorxiv")

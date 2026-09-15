@@ -4,7 +4,7 @@ import unittest
 from datetime import date
 
 from bioai_pipeline.filtering import classify_with_rules
-from bioai_pipeline.sources.biorxiv import BiorxivClient
+from bioai_pipeline.sources.biorxiv import BiorxivClient, CrossrefBiorxivClient
 
 
 ITEM = {
@@ -20,6 +20,28 @@ ITEM = {
     "category": "bioinformatics",
     "jatsxml": "https://www.biorxiv.org/example.source.xml",
     "abstract": "We use a transformer and machine learning to model cell morphology.",
+}
+
+CROSSREF_ITEM = {
+    "DOI": "10.64898/2026.09.10.654321",
+    "title": ["A neural network for single-cell phenotypes"],
+    "abstract": "<jats:p>We use a <jats:italic>transformer</jats:italic> model.</jats:p>",
+    "published": {"date-parts": [[2026, 9, 12]]},
+    "institution": [{"name": "bioRxiv"}],
+    "group-title": "Bioinformatics",
+    "subtype": "preprint",
+    "author": [
+        {
+            "given": "Ada",
+            "family": "Example",
+            "affiliation": [{"name": "Example University"}],
+        }
+    ],
+    "resource": {
+        "primary": {
+            "URL": "https://www.biorxiv.org/lookup/doi/10.64898/2026.09.10.654321"
+        }
+    },
 }
 
 
@@ -110,6 +132,25 @@ class BiorxivTest(unittest.TestCase):
         )
 
         self.assertEqual(len(papers), 30)
+
+    def test_parses_crossref_fallback_item(self) -> None:
+        paper = CrossrefBiorxivClient._parse_item(CROSSREF_ITEM)
+
+        self.assertEqual(paper.source, "biorxiv")
+        self.assertEqual(paper.abstract, "We use a transformer model.")
+        self.assertEqual(paper.authors[0].affiliation, "Example University")
+        self.assertEqual(
+            paper.source_metadata["metadata_provider"],
+            "crossref_fallback",
+        )
+
+    def test_crossref_filter_rejects_other_preprint_servers(self) -> None:
+        medrxiv = dict(CROSSREF_ITEM, institution=[{"name": "medRxiv"}])
+        medrxiv["resource"] = {
+            "primary": {"URL": "https://www.medrxiv.org/lookup/doi/example"}
+        }
+
+        self.assertFalse(CrossrefBiorxivClient._is_biorxiv(medrxiv))
 
 
 if __name__ == "__main__":
