@@ -38,7 +38,14 @@ class BiorxivClient:
             collection = payload.get("collection") or []
             if not collection:
                 break
-            papers.extend(self._parse_item(item) for item in collection)
+            for item in collection:
+                try:
+                    papers.append(self._parse_item(item))
+                except (BiorxivError, TypeError, ValueError):
+                    # Withdrawn or incomplete records occasionally appear in
+                    # the collection without a DOI/date. They have no stable
+                    # identity and cannot safely become feed items.
+                    continue
             cursor += len(collection)
             if cursor < total and len(papers) < max_results:
                 time.sleep(0.4)

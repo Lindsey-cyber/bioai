@@ -36,6 +36,14 @@ class FakeBiorxivClient(BiorxivClient):
         }
 
 
+class IncompleteItemClient(BiorxivClient):
+    def _page(self, start_date: date, end_date: date, cursor: int):
+        return {
+            "messages": [{"status": "ok", "total": "2"}],
+            "collection": [{"title": "Withdrawn record"}, ITEM],
+        }
+
+
 class BiorxivTest(unittest.TestCase):
     def test_parses_official_api_item(self) -> None:
         paper = BiorxivClient._parse_item(ITEM)
@@ -71,6 +79,16 @@ class BiorxivTest(unittest.TestCase):
         result = classify_with_rules(paper)
 
         self.assertTrue(result.accepted)
+
+    def test_skips_incomplete_records_without_stopping_the_batch(self) -> None:
+        papers = IncompleteItemClient().fetch_recent(
+            start_date=date(2026, 9, 11),
+            end_date=date(2026, 9, 14),
+            max_results=10,
+        )
+
+        self.assertEqual(len(papers), 1)
+        self.assertEqual(papers[0].source, "biorxiv")
 
 
 if __name__ == "__main__":
