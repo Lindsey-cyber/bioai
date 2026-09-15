@@ -20,6 +20,7 @@ type FeedRow = {
   affiliations: JsonObject[];
   topics: string[];
   abstract_url: string;
+  source_comment: string | null;
   content: {
     title_zh?: string;
     sections?: Record<string, { simple?: string; professional?: string }>;
@@ -171,7 +172,11 @@ function transformRow(row: FeedRow) {
   return {
     id: row.id,
     source: originalSource?.label || "Original source",
-    sourceType: "preprint",
+    sourceType: originalSource?.label === "bioRxiv"
+      ? "preprint"
+      : originalSource?.label === "PubMed"
+        ? String(row.source_comment || "journal article")
+        : "paper",
     age: formatAge(row.published_at),
     date: new Date(row.published_at).toISOString().slice(0, 10),
     title: row.title,
@@ -219,6 +224,7 @@ export async function GET(request: NextRequest) {
         papers.affiliations,
         papers.topics,
         papers.abstract_url,
+        papers.source_comment,
         explanation.content,
         explanation.limitations,
         explanation.terminology,

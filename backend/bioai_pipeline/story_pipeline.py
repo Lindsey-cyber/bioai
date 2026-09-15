@@ -146,11 +146,11 @@ def run_story_processing(
                     and fallback_count < settings.pdf_geography_fallback_limit
                 ):
                     try:
-                        biorxiv_institution = (
-                            paper.source_metadata.get("source") == "biorxiv"
+                        source_institution = (
+                            paper.source_metadata.get("source") in {"biorxiv", "pubmed"}
                             and paper.source_metadata.get("corresponding_institution")
                         )
-                        if biorxiv_institution:
+                        if source_institution:
                             first_page = (
                                 "Corresponding author institution: "
                                 f"{paper.source_metadata['corresponding_institution']}"
@@ -161,7 +161,7 @@ def run_story_processing(
                                 max_chars=16_000,
                                 max_pages=1,
                             )
-                        if not biorxiv_institution and len(first_page) < 200:
+                        if not source_institution and len(first_page) < 200:
                             raise RuntimeError("PDF first page text was unexpectedly short")
                         affiliation_texts[paper.arxiv_id] = first_page
                         fast_papers.append(paper)
@@ -234,7 +234,7 @@ def run_story_processing(
                         paper.source_metadata["fast_assessment"]
                     )
                     evidence_scope = "full_text"
-                    if paper.source_metadata.get("source") == "biorxiv":
+                    if paper.source_metadata.get("source") in {"biorxiv", "pubmed"}:
                         evidence_scope = "abstract_only"
                         paper_text = f"Title: {paper.title}\n\nAbstract: {paper.abstract}"
                     else:

@@ -23,6 +23,14 @@ class CliTest(unittest.TestCase):
         self.assertEqual(args.lookback_hours, 48)
         self.assertEqual(args.max_results, 120)
 
+    def test_pubmed_command_has_conservative_limits(self) -> None:
+        args = build_parser().parse_args(
+            ["ingest-pubmed", "--lookback-hours", "48", "--max-results", "120"]
+        )
+        self.assertEqual(args.command, "ingest-pubmed")
+        self.assertEqual(args.lookback_hours, 48)
+        self.assertEqual(args.max_results, 120)
+
 
 if __name__ == "__main__":
     unittest.main()

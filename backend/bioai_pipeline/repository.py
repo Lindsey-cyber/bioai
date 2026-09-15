@@ -505,7 +505,10 @@ class Repository(AbstractContextManager["Repository"]):
         final_score: float,
     ) -> str:
         source = str(paper.source_metadata.get("source") or "arxiv").lower()
-        source_label = "bioRxiv" if source == "biorxiv" else "arXiv"
+        source_label = {
+            "biorxiv": "bioRxiv",
+            "pubmed": "PubMed",
+        }.get(source, "arXiv")
         source_external_id = str(
             paper.source_metadata.get("source_external_id") or paper.arxiv_id
         )

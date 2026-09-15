@@ -23,6 +23,13 @@ def build_parser() -> argparse.ArgumentParser:
     biorxiv.add_argument("--dry-run", action="store_true")
     biorxiv.add_argument("--lookback-hours", type=int)
     biorxiv.add_argument("--max-results", type=int)
+    pubmed = subparsers.add_parser(
+        "ingest-pubmed",
+        help="Fetch and normalize recent PubMed articles",
+    )
+    pubmed.add_argument("--dry-run", action="store_true")
+    pubmed.add_argument("--lookback-hours", type=int)
+    pubmed.add_argument("--max-results", type=int)
     process = subparsers.add_parser(
         "process-stories",
         help="Enrich, triage, explain, rank, and publish pending papers",
@@ -62,6 +69,19 @@ def main() -> None:
         if args.max_results is not None:
             settings = replace(settings, biorxiv_max_results=args.max_results)
         summary = run_biorxiv_ingest(
+            settings,
+            dry_run=args.dry_run,
+            trigger=os.getenv("PIPELINE_TRIGGER", "manual"),
+        )
+        print(json.dumps(asdict(summary), ensure_ascii=False, indent=2))
+    elif args.command == "ingest-pubmed":
+        from bioai_pipeline.pubmed_pipeline import run_pubmed_ingest
+
+        if args.lookback_hours is not None:
+            settings = replace(settings, lookback_hours=args.lookback_hours)
+        if args.max_results is not None:
+            settings = replace(settings, pubmed_max_results=args.max_results)
+        summary = run_pubmed_ingest(
             settings,
             dry_run=args.dry_run,
             trigger=os.getenv("PIPELINE_TRIGGER", "manual"),

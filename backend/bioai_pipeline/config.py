@@ -91,6 +91,9 @@ class Settings:
     prompt_version: str
     arxiv_discovery_mode: str
     biorxiv_max_results: int
+    pubmed_max_results: int
+    ncbi_api_key: str | None
+    ncbi_email: str
     fast_reasoning_effort: str
     deep_reasoning_effort: str
     allowed_country_codes: frozenset[str]
@@ -122,6 +125,12 @@ class Settings:
             prompt_version=os.getenv("PROMPT_VERSION", "story-v1"),
             arxiv_discovery_mode=os.getenv("ARXIV_DISCOVERY_MODE", "rss"),
             biorxiv_max_results=int(os.getenv("BIORXIV_MAX_RESULTS", "300")),
+            pubmed_max_results=int(os.getenv("PUBMED_MAX_RESULTS", "300")),
+            ncbi_api_key=os.getenv("NCBI_API_KEY"),
+            ncbi_email=os.getenv(
+                "NCBI_EMAIL",
+                "Lindsey-cyber@users.noreply.github.com",
+            ),
             fast_reasoning_effort=os.getenv("OPENAI_FAST_REASONING_EFFORT", "none"),
             deep_reasoning_effort=os.getenv(
                 "OPENAI_DEEP_REASONING_EFFORT",
