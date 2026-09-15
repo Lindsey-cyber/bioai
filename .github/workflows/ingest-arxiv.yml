@@ -41,7 +41,7 @@ jobs:
       ARXIV_LOOKBACK_HOURS: ${{ inputs.lookback_hours || '72' }}
       ARXIV_MAX_RESULTS_PER_QUERY: ${{ inputs.max_results_per_query || '300' }}
       ARXIV_DISCOVERY_MODE: rss
-      BIORXIV_MAX_RESULTS: "600"
+      BIORXIV_MAX_RESULTS: "300"
       MAX_SOL_STORIES_PER_DAY: ${{ inputs.max_sol_stories || '6' }}
       PROCESS_MAX_PAPERS: "60"
       PIPELINE_TRIGGER: ${{ github.event_name }}
