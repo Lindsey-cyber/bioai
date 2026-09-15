@@ -58,6 +58,10 @@ def _final_score(
     return round(max(0.0, min(1.0, score)), 4)
 
 
+def _batched(values: list[PaperRecord], size: int) -> list[list[PaperRecord]]:
+    return [values[index : index + size] for index in range(0, len(values), size)]
+
+
 def run_story_processing(
     settings: Settings,
     *,
@@ -165,46 +169,61 @@ def run_story_processing(
                     except Exception as exc:
                         errors.append(f"{paper.arxiv_id}: affiliation PDF: {exc}")
                         repository.mark_processing_error(paper.id, str(exc))
-            if fast_papers:
-                fast_result = ai.assess_batch(fast_papers, affiliation_texts)
-                batch = fast_result.value
-                if not isinstance(batch, FastAssessmentBatch):
-                    raise RuntimeError("Unexpected fast assessment result type")
-                total_input_tokens += fast_result.input_tokens
-                total_output_tokens += fast_result.output_tokens
-                total_cost += fast_result.estimated_cost_usd
-                by_arxiv_id = {paper.arxiv_id: paper for paper in fast_papers}
-                divisor = max(1, len(batch.assessments))
-                for assessment in batch.assessments:
-                    paper = by_arxiv_id[assessment.arxiv_id]
-                    geography_status = paper.geography_status
-                    if geography_status != "eligible":
-                        geography_status = repository.save_ai_geography(
+            for fast_paper_batch in _batched(fast_papers, settings.fast_batch_size):
+                try:
+                    batch_affiliations = {
+                        paper.arxiv_id: affiliation_texts[paper.arxiv_id]
+                        for paper in fast_paper_batch
+                        if paper.arxiv_id in affiliation_texts
+                    }
+                    fast_result = ai.assess_batch(fast_paper_batch, batch_affiliations)
+                    batch = fast_result.value
+                    if not isinstance(batch, FastAssessmentBatch):
+                        raise RuntimeError("Unexpected fast assessment result type")
+                    total_input_tokens += fast_result.input_tokens
+                    total_output_tokens += fast_result.output_tokens
+                    total_cost += fast_result.estimated_cost_usd
+                    by_arxiv_id = {
+                        paper.arxiv_id: paper for paper in fast_paper_batch
+                    }
+                    divisor = max(1, len(batch.assessments))
+                    for assessment in batch.assessments:
+                        paper = by_arxiv_id[assessment.arxiv_id]
+                        geography_status = paper.geography_status
+                        if geography_status != "eligible":
+                            geography_status = repository.save_ai_geography(
+                                paper.id,
+                                assessment,
+                                settings.allowed_country_codes,
+                            )
+                            if geography_status == "eligible":
+                                eligible_count += 1
+                                unresolved_count = max(0, unresolved_count - 1)
+                            elif geography_status == "ineligible":
+                                ineligible_count += 1
+                                unresolved_count = max(0, unresolved_count - 1)
+                        if geography_status != "eligible":
+                            continue
+                        repository.save_fast_assessment(
                             paper.id,
                             assessment,
-                            settings.allowed_country_codes,
+                            model=fast_result.model,
+                            prompt_version=settings.prompt_version,
+                            input_tokens=round(fast_result.input_tokens / divisor),
+                            output_tokens=round(fast_result.output_tokens / divisor),
+                            estimated_cost_usd=round(
+                                fast_result.estimated_cost_usd / divisor, 6
+                            ),
                         )
-                        if geography_status == "eligible":
-                            eligible_count += 1
-                            unresolved_count = max(0, unresolved_count - 1)
-                        elif geography_status == "ineligible":
-                            ineligible_count += 1
-                            unresolved_count = max(0, unresolved_count - 1)
-                    if geography_status != "eligible":
-                        continue
-                    repository.save_fast_assessment(
-                        paper.id,
-                        assessment,
-                        model=fast_result.model,
-                        prompt_version=settings.prompt_version,
-                        input_tokens=round(fast_result.input_tokens / divisor),
-                        output_tokens=round(fast_result.output_tokens / divisor),
-                        estimated_cost_usd=round(fast_result.estimated_cost_usd / divisor, 6),
-                    )
-                    if assessment.is_relevant:
-                        fast_accepted += 1
-                    else:
-                        fast_rejected += 1
+                        if assessment.is_relevant:
+                            fast_accepted += 1
+                        else:
+                            fast_rejected += 1
+                except Exception as exc:
+                    batch_ids = ",".join(paper.arxiv_id for paper in fast_paper_batch)
+                    errors.append(f"fast batch [{batch_ids}]: {exc}")
+                    for paper in fast_paper_batch:
+                        repository.mark_processing_error(paper.id, str(exc))
 
             affinities = repository.preference_topic_affinity()
             deep_candidates = repository.list_deep_candidates(sol_limit)

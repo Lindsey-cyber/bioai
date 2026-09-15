@@ -104,6 +104,7 @@ class Settings:
     rank_freshness_weight: float
     rank_confidence_weight: float
     pdf_geography_fallback_limit: int
+    fast_batch_size: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -153,4 +154,5 @@ class Settings:
             pdf_geography_fallback_limit=int(
                 os.getenv("PDF_GEOGRAPHY_FALLBACK_LIMIT", "12")
             ),
+            fast_batch_size=max(1, int(os.getenv("FAST_BATCH_SIZE", "15"))),
         )

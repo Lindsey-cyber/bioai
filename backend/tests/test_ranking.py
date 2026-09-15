@@ -4,10 +4,15 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from bioai_pipeline.config import Settings
-from bioai_pipeline.story_pipeline import _final_score, _freshness, _personal_relevance
+from bioai_pipeline.story_pipeline import _batched, _final_score, _freshness, _personal_relevance
 
 
 class RankingTest(unittest.TestCase):
+    def test_fast_candidates_are_split_into_small_stable_batches(self) -> None:
+        values = list(range(32))
+
+        self.assertEqual([len(batch) for batch in _batched(values, 15)], [15, 15, 2])
+
     def test_content_affinity_is_separate_from_explanation_depth(self) -> None:
         relevance = _personal_relevance(
             ["neuroscience", "protein design"],
