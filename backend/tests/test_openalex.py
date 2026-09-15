@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+import urllib.parse
 
 from bioai_pipeline.sources.openalex import OpenAlexClient, title_similarity
 
@@ -48,6 +49,23 @@ class OpenAlexTest(unittest.TestCase):
         self.assertTrue(metadata.authors[0]["is_corresponding"])
         self.assertEqual(metadata.institutions[0]["name"], "Example University")
         self.assertEqual(metadata.country_codes, ("US",))
+
+    def test_search_normalizes_openalex_query_syntax(self) -> None:
+        class CapturingClient(OpenAlexClient):
+            requested_url = ""
+
+            def _get(self, url: str):
+                self.requested_url = url
+                return {"results": []}
+
+        client = CapturingClient(None)
+        client.lookup_by_title("Is AI Capable of Real-World Drug Discovery?")
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(client.requested_url).query)
+
+        self.assertEqual(
+            query["search"],
+            ["is ai capable of real world drug discovery"],
+        )
 
 
 if __name__ == "__main__":

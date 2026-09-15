@@ -37,7 +37,10 @@ class OpenAlexClient:
 
     def lookup_by_title(self, title: str) -> OpenAlexMetadata | None:
         params = {
-            "search": title,
+            # OpenAlex treats punctuation such as a trailing question mark as
+            # search syntax and can return HTTP 400. Reuse the plain title
+            # normalization that also protects match verification.
+            "search": normalize_title(title),
             "per-page": "5",
             "select": "id,title,doi,authorships,primary_location",
         }
