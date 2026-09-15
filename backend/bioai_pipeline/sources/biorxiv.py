@@ -21,6 +21,10 @@ class BiorxivError(RuntimeError):
 class BiorxivClient:
     page_size = 30
 
+    def __init__(self, request_timeout: int = 20, max_attempts: int = 2):
+        self.request_timeout = request_timeout
+        self.max_attempts = max(1, max_attempts)
+
     def fetch_recent(
         self,
         *,
@@ -64,9 +68,9 @@ class BiorxivClient:
             headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
         )
         last_error: Exception | None = None
-        for attempt in range(4):
+        for attempt in range(self.max_attempts):
             try:
-                with urllib.request.urlopen(request, timeout=45) as response:
+                with urllib.request.urlopen(request, timeout=self.request_timeout) as response:
                     payload = json.load(response)
                 messages = payload.get("messages") or []
                 if messages and messages[0].get("status") != "ok":
@@ -78,7 +82,7 @@ class BiorxivClient:
                 last_error = exc
                 if isinstance(exc, urllib.error.HTTPError) and exc.code < 500 and exc.code != 429:
                     break
-                if attempt < 3:
+                if attempt < self.max_attempts - 1:
                     time.sleep(2**attempt)
         raise BiorxivError(f"bioRxiv API request failed after retries: {last_error}")
 

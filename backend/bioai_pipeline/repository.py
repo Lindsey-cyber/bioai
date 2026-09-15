@@ -111,6 +111,43 @@ class Repository(AbstractContextManager["Repository"]):
                 ),
             )
 
+    def save_raw_batch(self, papers: list[ArxivPaper], run_id: str) -> None:
+        rows: list[tuple[object, ...]] = []
+        for paper in papers:
+            payload = paper.raw_payload()
+            payload_hash = hashlib.sha256(
+                json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+            ).hexdigest()
+            rows.append(
+                (
+                    paper.source,
+                    paper.arxiv_id,
+                    paper.version,
+                    run_id,
+                    payload_hash,
+                    Jsonb(payload),
+                )
+            )
+        if not rows:
+            return
+        with self.connection.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO raw_items (
+                    source, source_item_id, source_version, pipeline_run_id,
+                    payload_sha256, raw_payload, processing_status
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, 'fetched')
+                ON CONFLICT (source, source_item_id, source_version)
+                DO UPDATE SET
+                    last_seen_at = now(),
+                    pipeline_run_id = EXCLUDED.pipeline_run_id,
+                    payload_sha256 = EXCLUDED.payload_sha256,
+                    raw_payload = EXCLUDED.raw_payload
+                """,
+                rows,
+            )
+
     def upsert_paper(self, paper: ArxivPaper, result: HeuristicResult) -> None:
         authors = [
             {"name": author.name, "affiliation": author.affiliation}

@@ -39,8 +39,7 @@ def run_biorxiv_ingest(
         with Repository(settings.database_url) as repository:
             run_id = repository.start_run(trigger, config, source="biorxiv")
             try:
-                for paper in unique:
-                    repository.save_raw(paper, run_id)
+                repository.save_raw_batch(unique, run_id)
                 for candidate in accepted:
                     repository.upsert_paper(candidate.paper, candidate.heuristic)
                 repository.finish_run(
