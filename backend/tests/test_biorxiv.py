@@ -44,6 +44,18 @@ class IncompleteItemClient(BiorxivClient):
         }
 
 
+class LaterPageTimeoutClient(BiorxivClient):
+    def _page(self, start_date: date, end_date: date, cursor: int):
+        if cursor:
+            from bioai_pipeline.sources.biorxiv import BiorxivError
+
+            raise BiorxivError("timed out")
+        return {
+            "messages": [{"status": "ok", "total": "60"}],
+            "collection": [dict(ITEM, doi=f"10.64898/partial.{index}") for index in range(30)],
+        }
+
+
 class BiorxivTest(unittest.TestCase):
     def test_parses_official_api_item(self) -> None:
         paper = BiorxivClient._parse_item(ITEM)
@@ -89,6 +101,15 @@ class BiorxivTest(unittest.TestCase):
 
         self.assertEqual(len(papers), 1)
         self.assertEqual(papers[0].source, "biorxiv")
+
+    def test_keeps_completed_pages_when_a_later_page_times_out(self) -> None:
+        papers = LaterPageTimeoutClient().fetch_recent(
+            start_date=date(2026, 9, 11),
+            end_date=date(2026, 9, 14),
+            max_results=60,
+        )
+
+        self.assertEqual(len(papers), 30)
 
 
 if __name__ == "__main__":

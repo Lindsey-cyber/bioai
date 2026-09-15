@@ -49,7 +49,12 @@ class BiorxivClient:
             cursor += len(collection)
             if cursor < total and len(papers) < max_results:
                 time.sleep(0.4)
-                payload = self._page(start_date, end_date, cursor)
+                try:
+                    payload = self._page(start_date, end_date, cursor)
+                except BiorxivError:
+                    # A later page timing out should not discard earlier pages.
+                    # The overlapping daily window will fill the gap next run.
+                    break
         return papers[-max_results:]
 
     def _page(self, start_date: date, end_date: date, cursor: int) -> dict[str, Any]:
