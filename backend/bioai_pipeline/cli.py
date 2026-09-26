@@ -45,6 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Translate stored Chinese explanations into matching English copy",
     )
     translate.add_argument("--limit", type=int, default=50)
+    metadata = subparsers.add_parser(
+        "backfill-metadata",
+        help="Refresh verified author, institution, and representative-work metadata",
+    )
+    metadata.add_argument("--limit", type=int, default=100)
     return parser
 
 
@@ -106,6 +111,11 @@ def main() -> None:
         from bioai_pipeline.story_pipeline import run_english_backfill
 
         summary = run_english_backfill(settings, limit=args.limit)
+        print(json.dumps(asdict(summary), ensure_ascii=False, indent=2))
+    elif args.command == "backfill-metadata":
+        from bioai_pipeline.story_pipeline import run_metadata_backfill
+
+        summary = run_metadata_backfill(settings, limit=args.limit)
         print(json.dumps(asdict(summary), ensure_ascii=False, indent=2))
 
 

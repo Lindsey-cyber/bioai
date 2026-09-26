@@ -116,20 +116,66 @@ function transformRow(row: FeedRow) {
 
   const people = selectCoreAuthors(row.authors || []).map((author) => {
     const name = String(author.name || "Unknown author");
-    const authorInstitutions = Array.isArray(author.institutions) ? author.institutions as JsonObject[] : [];
+    const currentInstitutions = Array.isArray(author.last_known_institutions) ? author.last_known_institutions as JsonObject[] : [];
+    const paperInstitutions = Array.isArray(author.institutions) ? author.institutions as JsonObject[] : [];
+    const authorInstitutions = currentInstitutions.length ? currentInstitutions : paperInstitutions;
     const affiliation = String(
       authorInstitutions[0]?.name || author.affiliation || "机构信息待核实",
     );
+    const researchTopics = Array.isArray(author.research_topics)
+      ? author.research_topics.map(String).filter(Boolean).slice(0, 5)
+      : [];
+    const worksCount = Number(author.works_count || 0);
+    const citedByCount = Number(author.cited_by_count || 0);
+    const representativeWorks = Array.isArray(author.representative_works)
+      ? author.representative_works as JsonObject[]
+      : [];
+    const noteByReason: Record<string, { zh: string; en: string }> = {
+      highly_cited: { zh: "按引用与学术影响选取", en: "Selected for scholarly impact" },
+      current_direction: { zh: "代表近期研究方向", en: "Represents recent research direction" },
+      related_to_story: { zh: "与当前 Story 最相关", en: "Most relevant to this story" },
+      representative: { zh: "代表性研究", en: "Representative work" },
+    };
+    const role = author.position === "first" && author.is_corresponding
+      ? "First & corresponding author"
+      : author.position === "first"
+        ? "First author"
+        : author.is_corresponding
+          ? "Corresponding author"
+          : author.position === "last"
+            ? "Senior / last author"
+            : "Author";
     return {
       id: safeId("author", String(author.id || name)),
       initials: initials(name),
       name,
-      role: author.position === "first" ? "First author" : author.is_corresponding ? "Corresponding author" : "Author",
+      role,
       institution: affiliation,
-      focus: row.topics || [],
-      bio: "作者资料正在通过 OpenAlex 与官方机构页面核实；在确认身份前不展示照片或未经验证的履历。",
-      career: "可靠的教育和职业经历尚未补全。",
-      papers: [],
+      focus: researchTopics.length ? researchTopics : row.topics || [],
+      bio: author.profile_verified
+        ? `OpenAlex 已用稳定作者 ID 核实该作者；目前收录约 ${worksCount} 篇作品、${citedByCount} 次引用。`
+        : "作者身份尚未完成可靠核实；因此暂不展示照片或推测性履历。",
+      bioEn: author.profile_verified
+        ? `Verified by a stable OpenAlex author ID, with approximately ${worksCount} indexed works and ${citedByCount} citations.`
+        : "This identity has not yet been reliably verified, so no photo or inferred biography is shown.",
+      career: author.profile_verified
+        ? `当前机构来自 OpenAlex 的 last-known institution。教育经历尚无可靠来源，暂不补写。`
+        : "可靠的教育和职业经历尚未补全。",
+      careerEn: author.profile_verified
+        ? "The current affiliation is OpenAlex's last-known institution. Verified education history is not yet available."
+        : "Verified education and career history is not yet available.",
+      profileUrl: String(author.openalex_url || "") || undefined,
+      orcid: String(author.orcid || "") || undefined,
+      papers: representativeWorks.map((work) => {
+        const reason = noteByReason[String(work.selection_reason || "representative")] || noteByReason.representative;
+        return {
+          title: String(work.title || "Untitled work"),
+          year: Number(work.year || new Date().getFullYear()),
+          note: reason.zh,
+          noteEn: reason.en,
+          url: String(work.url || work.id || "") || undefined,
+        };
+      }).slice(0, 3),
     };
   });
 
@@ -140,18 +186,30 @@ function transformRow(row: FeedRow) {
   const seenInstitutions = new Set<string>();
   const institutions = affiliations.flatMap((institution) => {
     const name = String(institution.name || "");
-    if (!name || seenInstitutions.has(name)) return [];
-    seenInstitutions.add(name);
+    const institutionKey = String(institution.id || name);
+    if (!name || seenInstitutions.has(institutionKey)) return [];
+    seenInstitutions.add(institutionKey);
     const countryCode = String(institution.country_code || "");
+    const location = institution.location && typeof institution.location === "object" ? institution.location as JsonObject : {};
+    const locationText = [location.city, location.region, location.country].map(String).filter((value) => value && value !== "undefined").join(", ") || countryCode || "地点待核实";
+    const researchTopics = Array.isArray(institution.research_topics)
+      ? institution.research_topics.map(String).filter(Boolean).slice(0, 5)
+      : row.topics || [];
+    const kind = String(institution.type || "Research institution");
+    const verified = Boolean(institution.profile_verified);
     return [{
       id: safeId("institution", String(institution.id || name)),
       name,
       short: name.split(/\s+/).slice(0, 3).map((part) => part[0]).join("").toUpperCase(),
-      location: countryCode || "地点待核实",
-      kind: String(institution.type || "Research institution"),
-      description: "机构资料正在核实中。",
-      direction: (row.topics || []).join("、"),
+      location: locationText,
+      kind,
+      description: verified ? `OpenAlex 已核实这是一个 ${kind} 类型机构，地点为 ${locationText}。` : "机构资料正在核实中。",
+      descriptionEn: verified ? `OpenAlex identifies this as a ${kind} institution located in ${locationText}.` : "Verified institution information is being prepared.",
+      direction: researchTopics.join("、"),
+      directionEn: researchTopics.join(" · "),
       why: "该机构参与了这项最新研究。",
+      whyEn: "This institution is linked to the authorship record for the featured research.",
+      profileUrl: String(institution.homepage_url || institution.openalex_url || "") || undefined,
       researchers: people.filter((person) => person.institution === name).map((person) => person.id),
     }];
   }).slice(0, 3);

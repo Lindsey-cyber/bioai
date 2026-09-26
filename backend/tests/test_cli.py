@@ -31,6 +31,11 @@ class CliTest(unittest.TestCase):
         self.assertEqual(args.lookback_hours, 48)
         self.assertEqual(args.max_results, 120)
 
+    def test_metadata_backfill_has_bounded_default(self) -> None:
+        args = build_parser().parse_args(["backfill-metadata"])
+        self.assertEqual(args.command, "backfill-metadata")
+        self.assertEqual(args.limit, 100)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -315,6 +315,7 @@ class Repository(AbstractContextManager["Repository"]):
                     "id": metadata.openalex_id,
                     "title": metadata.title,
                     "title_similarity": metadata.title_similarity,
+                    "metadata_version": metadata.raw.get("metadata_version", "work-v1"),
                     "authors": metadata.authors,
                     "institutions": metadata.institutions,
                     "primary_location": metadata.primary_location,
@@ -351,6 +352,67 @@ class Repository(AbstractContextManager["Repository"]):
                 ),
             )
         return geography_status
+
+    def list_metadata_backfill_candidates(self, limit: int) -> list[PaperRecord]:
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT papers.id::text, papers.arxiv_id, papers.latest_version,
+                       papers.title, papers.abstract, papers.authors,
+                       papers.categories, papers.published_at, papers.abstract_url,
+                       papers.pdf_url, papers.geography_status,
+                       papers.country_codes, papers.processing_status,
+                       papers.source_metadata
+                FROM stories
+                JOIN papers ON papers.id = stories.paper_id
+                WHERE stories.status = 'published'
+                  AND papers.source_metadata->>'openalex_status' = 'matched'
+                  AND COALESCE(
+                    papers.source_metadata #>> '{openalex,metadata_version}', ''
+                  ) <> 'profiles-v1'
+                ORDER BY stories.published_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return [self._paper_record(row) for row in cursor.fetchall()]
+
+    def save_enriched_openalex_metadata(
+        self,
+        paper_id: str,
+        metadata: OpenAlexMetadata,
+    ) -> None:
+        patch = {
+            "openalex_status": "matched",
+            "openalex": {
+                "id": metadata.openalex_id,
+                "title": metadata.title,
+                "title_similarity": metadata.title_similarity,
+                "metadata_version": metadata.raw.get("metadata_version", "work-v1"),
+                "authors": metadata.authors,
+                "institutions": metadata.institutions,
+                "primary_location": metadata.primary_location,
+            },
+        }
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE papers
+                SET authors = %s,
+                    affiliations = %s,
+                    doi = COALESCE(papers.doi, %s),
+                    source_metadata = source_metadata || %s,
+                    updated_at = now()
+                WHERE id = %s
+                """,
+                (
+                    Jsonb(list(metadata.authors)),
+                    Jsonb(list(metadata.institutions)),
+                    metadata.doi,
+                    Jsonb(patch),
+                    paper_id,
+                ),
+            )
 
     def save_fast_assessment(
         self,

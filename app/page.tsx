@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ageLabel,
   feedbackLabels,
@@ -35,8 +36,12 @@ type Person = {
   institution: string;
   focus: string[];
   bio: string;
+  bioEn?: string;
   career: string;
-  papers: { title: string; year: number; note: string }[];
+  careerEn?: string;
+  profileUrl?: string;
+  orcid?: string;
+  papers: { title: string; year: number; note: string; noteEn?: string; url?: string }[];
 };
 
 type Institution = {
@@ -46,8 +51,12 @@ type Institution = {
   location: string;
   kind: string;
   description: string;
+  descriptionEn?: string;
   direction: string;
+  directionEn?: string;
   why: string;
+  whyEn?: string;
+  profileUrl?: string;
   researchers: string[];
 };
 
@@ -480,7 +489,9 @@ async function persistFeedback(storyId: string, option: Feedback, active: boolea
 }
 
 export default function Home() {
-  const [language, setLanguage] = useState<Language>("en");
+  const pathname = usePathname();
+  const router = useRouter();
+  const language: Language = pathname === "/zh" || pathname.startsWith("/zh/") ? "zh" : "en";
   const [view, setView] = useState<View>("feed");
   const [mode, setMode] = useState<FeedMode>("for-you");
   const [theme, setTheme] = useState<Theme>("night");
@@ -513,7 +524,6 @@ export default function Home() {
       setTopics(readLocal("bioai:topics", ["蛋白质设计", "药物发现", "单细胞", "NeuroAI"]));
       setSources(readLocal("bioai:sources", ["arXiv", "bioRxiv", "PubMed"]));
       setTheme(readLocal<Theme>("bioai:theme", "night"));
-      setLanguage(readLocal<Language>("bioai:language-v2", "en"));
       setHydrated(true);
     });
     return () => window.cancelAnimationFrame(frame);
@@ -546,7 +556,6 @@ export default function Home() {
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:topics", JSON.stringify(topics)); }, [topics, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:sources", JSON.stringify(sources)); }, [sources, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:theme", JSON.stringify(theme)); }, [theme, hydrated]);
-  useEffect(() => { if (hydrated) localStorage.setItem("bioai:language-v2", JSON.stringify(language)); }, [language, hydrated]);
 
   useEffect(() => {
     if (!toast) return;
@@ -693,9 +702,9 @@ export default function Home() {
             {theme === "night" ? "☼" : "☾"}
           </button>
           <div className="language-toggle" aria-label={language === "zh" ? "语言" : "Language"}>
-            <button className={language === "zh" ? "active" : ""} onClick={() => setLanguage("zh")} aria-pressed={language === "zh"}>中</button>
+            <button className={language === "zh" ? "active" : ""} onClick={() => router.push("/zh")} aria-pressed={language === "zh"}>中</button>
             <span>/</span>
-            <button className={language === "en" ? "active" : ""} onClick={() => setLanguage("en")} aria-pressed={language === "en"}>EN</button>
+            <button className={language === "en" ? "active" : ""} onClick={() => router.push("/")} aria-pressed={language === "en"}>EN</button>
           </div>
         </header>
 
@@ -1008,10 +1017,10 @@ function PersonProfile({ person, isSaved, onSave, onInstitution, onStory, storie
     <div className="profile-content">
       <div className="profile-hero"><Avatar initials={person.initials} /><div><h2>{person.name}</h2><p>{person.role}</p><button onClick={onInstitution}>{person.institution} →</button></div></div>
       <button className={`save-profile ${isSaved ? "active" : ""}`} onClick={onSave}>{isSaved ? `★ ${copy.personSaved}` : `☆ ${copy.savePerson}`}</button>
-      <ProfileSection label={copy.who}><p>{language === "en" ? translated?.bio || "Verified profile information is being prepared." : person.bio}</p></ProfileSection>
-      <ProfileSection label={copy.career}><p>{language === "en" ? translated?.career || "Verified education and career history is not yet available." : person.career}</p></ProfileSection>
+      <ProfileSection label={copy.who}><p>{language === "en" ? person.bioEn || translated?.bio || "Verified profile information is being prepared." : person.bio}</p></ProfileSection>
+      <ProfileSection label={copy.career}><p>{language === "en" ? person.careerEn || translated?.career || "Verified education and career history is not yet available." : person.career}</p></ProfileSection>
       <ProfileSection label={copy.focus}><div className="topic-row">{person.focus.map((focus) => <span key={focus}>{topicLabel(focus, language)}</span>)}</div></ProfileSection>
-      <ProfileSection label={copy.papers}><div className="paper-list">{person.papers.map((paper, index) => <button key={paper.title} onClick={() => showExternalDemo("Representative paper", language)}><span>{String(index + 1).padStart(2, "0")}</span><div><b>{paper.title}</b><small>{paper.year} · {language === "en" ? translated?.paperNotes[index] || "Representative work" : paper.note}</small></div><i>↗</i></button>)}</div></ProfileSection>
+      <ProfileSection label={copy.papers}><div className="paper-list">{person.papers.map((paper, index) => <button key={paper.title} onClick={() => paper.url ? window.open(paper.url, "_blank", "noopener,noreferrer") : showExternalDemo("Representative paper", language)}><span>{String(index + 1).padStart(2, "0")}</span><div><b>{paper.title}</b><small>{paper.year} · {language === "en" ? paper.noteEn || translated?.paperNotes[index] || "Representative work" : paper.note}</small></div><i>↗</i></button>)}</div></ProfileSection>
       <ProfileSection label={copy.recentStories}><div className="related-list">{related.map((story) => <button key={story.id} onClick={() => onStory(story)}><span>{story.source}</span><b>{language === "zh" ? story.titleZh : story.title}</b><i>→</i></button>)}</div></ProfileSection>
     </div>
   );
@@ -1026,9 +1035,9 @@ function InstitutionProfile({ institution, isSaved, onSave, onPerson, onStory, s
     <div className="profile-content">
       <div className="institution-hero"><span>{institution.short}</span><div><p className="eyebrow">{institution.kind}</p><h2>{institution.name}</h2><p>{institution.location}</p></div></div>
       <button className={`save-profile ${isSaved ? "active" : ""}`} onClick={onSave}>{isSaved ? `★ ${copy.institutionSaved}` : `☆ ${copy.saveInstitution}`}</button>
-      <ProfileSection label={copy.whatInstitution}><p>{language === "en" ? translated?.description || "Verified institution information is being prepared." : institution.description}</p></ProfileSection>
-      <ProfileSection label={copy.direction}><p>{language === "en" ? translated?.direction || institution.direction : institution.direction}</p></ProfileSection>
-      <ProfileSection label={copy.whyKnow}><p>{language === "en" ? translated?.why || "This institution contributed to the featured research." : institution.why}</p></ProfileSection>
+      <ProfileSection label={copy.whatInstitution}><p>{language === "en" ? institution.descriptionEn || translated?.description || "Verified institution information is being prepared." : institution.description}</p></ProfileSection>
+      <ProfileSection label={copy.direction}><p>{language === "en" ? institution.directionEn || translated?.direction || institution.direction : institution.direction}</p></ProfileSection>
+      <ProfileSection label={copy.whyKnow}><p>{language === "en" ? institution.whyEn || translated?.why || "This institution contributed to the featured research." : institution.why}</p></ProfileSection>
       <ProfileSection label={copy.researchers}><div className="mini-people">{institution.researchers.map((id) => {
         const person = people.find((item) => item.id === id);
         if (!person) return null;
@@ -1131,7 +1140,7 @@ function openOriginalSource(story: Story) {
 }
 
 function showExternalDemo(source: string, language?: Language) {
-  const currentLanguage = language || readLocal<Language>("bioai:language-v2", "en");
+  const currentLanguage = language || (window.location.pathname === "/zh" || window.location.pathname.startsWith("/zh/") ? "zh" : "en");
   window.dispatchEvent(new CustomEvent("bioai:toast", { detail: source }));
   alert(currentLanguage === "zh"
     ? `${source}\n\nPhase 1 使用 mock source；Phase 3 接入真实来源后将在新窗口打开。`

@@ -46,6 +46,45 @@ class EnglishBackfillSummary:
     errors: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class MetadataBackfillSummary:
+    enriched_count: int
+    unmatched_count: int
+    error_count: int
+    errors: tuple[str, ...]
+
+
+def run_metadata_backfill(settings: Settings, *, limit: int = 100) -> MetadataBackfillSummary:
+    """Refresh published story profiles using only stable OpenAlex entity IDs."""
+    if not settings.database_url:
+        raise RuntimeError("DATABASE_URL is required for metadata enrichment")
+    if not settings.openalex_api_key:
+        raise RuntimeError("OPENALEX_API_KEY is required for metadata enrichment")
+    client = OpenAlexClient(settings.openalex_api_key, settings.openalex_match_threshold)
+    enriched_count = 0
+    unmatched_count = 0
+    errors: list[str] = []
+    with Repository(settings.database_url) as repository:
+        for paper in repository.list_metadata_backfill_candidates(limit):
+            try:
+                metadata = client.lookup_by_title(paper.title)
+                if metadata is None:
+                    unmatched_count += 1
+                    continue
+                if metadata.raw.get("metadata_version") != "profiles-v1":
+                    raise RuntimeError("OpenAlex profile endpoints returned no verified entities")
+                repository.save_enriched_openalex_metadata(paper.id, metadata)
+                enriched_count += 1
+            except Exception as exc:
+                errors.append(f"{paper.arxiv_id}: {exc}")
+    return MetadataBackfillSummary(
+        enriched_count=enriched_count,
+        unmatched_count=unmatched_count,
+        error_count=len(errors),
+        errors=tuple(errors),
+    )
+
+
 def run_english_backfill(settings: Settings, *, limit: int = 50) -> EnglishBackfillSummary:
     """Translate stored Chinese explanations without fetching or rereading papers."""
     if not settings.database_url:
