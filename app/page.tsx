@@ -513,7 +513,7 @@ export default function Home() {
       setTopics(readLocal("bioai:topics", ["蛋白质设计", "药物发现", "单细胞", "NeuroAI"]));
       setSources(readLocal("bioai:sources", ["arXiv", "bioRxiv", "PubMed"]));
       setTheme(readLocal<Theme>("bioai:theme", "night"));
-      setLanguage(readLocal<Language>("bioai:language", "en"));
+      setLanguage(readLocal<Language>("bioai:language-v2", "en"));
       setHydrated(true);
     });
     return () => window.cancelAnimationFrame(frame);
@@ -546,7 +546,7 @@ export default function Home() {
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:topics", JSON.stringify(topics)); }, [topics, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:sources", JSON.stringify(sources)); }, [sources, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:theme", JSON.stringify(theme)); }, [theme, hydrated]);
-  useEffect(() => { if (hydrated) localStorage.setItem("bioai:language", JSON.stringify(language)); }, [language, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem("bioai:language-v2", JSON.stringify(language)); }, [language, hydrated]);
 
   useEffect(() => {
     if (!toast) return;
@@ -1131,7 +1131,7 @@ function openOriginalSource(story: Story) {
 }
 
 function showExternalDemo(source: string, language?: Language) {
-  const currentLanguage = language || readLocal<Language>("bioai:language", "en");
+  const currentLanguage = language || readLocal<Language>("bioai:language-v2", "en");
   window.dispatchEvent(new CustomEvent("bioai:toast", { detail: source }));
   alert(currentLanguage === "zh"
     ? `${source}\n\nPhase 1 使用 mock source；Phase 3 接入真实来源后将在新窗口打开。`

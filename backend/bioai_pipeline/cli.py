@@ -40,6 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=int(os.getenv("PROCESS_MAX_PAPERS", "60")),
     )
     process.add_argument("--max-sol-stories", type=int)
+    translate = subparsers.add_parser(
+        "backfill-english",
+        help="Translate stored Chinese explanations into matching English copy",
+    )
+    translate.add_argument("--limit", type=int, default=50)
     return parser
 
 
@@ -96,6 +101,11 @@ def main() -> None:
             max_papers=args.max_papers,
             max_sol_stories=args.max_sol_stories,
         )
+        print(json.dumps(asdict(summary), ensure_ascii=False, indent=2))
+    elif args.command == "backfill-english":
+        from bioai_pipeline.story_pipeline import run_english_backfill
+
+        summary = run_english_backfill(settings, limit=args.limit)
         print(json.dumps(asdict(summary), ensure_ascii=False, indent=2))
 
 

@@ -36,6 +36,63 @@ class ProcessingSummary:
     errors: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class EnglishBackfillSummary:
+    translated_count: int
+    error_count: int
+    input_tokens: int
+    output_tokens: int
+    estimated_cost_usd: float
+    errors: tuple[str, ...]
+
+
+def run_english_backfill(settings: Settings, *, limit: int = 50) -> EnglishBackfillSummary:
+    """Translate stored Chinese explanations without fetching or rereading papers."""
+    if not settings.database_url:
+        raise RuntimeError("DATABASE_URL is required for English translation")
+    ai = OpenAIProcessor(settings)
+    translated_count = 0
+    input_tokens = 0
+    output_tokens = 0
+    cost = 0.0
+    errors: list[str] = []
+    with Repository(settings.database_url) as repository:
+        for candidate in repository.list_english_translation_candidates(limit):
+            try:
+                content = candidate["content"]
+                result = ai.translate_explanation(
+                    title_zh=str(content.get("title_zh") or ""),
+                    sections=dict(content.get("sections") or {}),
+                    limitations=list(candidate["limitations"]),
+                )
+                translation = result.value
+                if not isinstance(translation, EnglishTranslation):
+                    raise RuntimeError("Unexpected English translation result type")
+                repository.save_english_translation(
+                    str(candidate["explanation_id"]),
+                    translation,
+                    model=result.model,
+                    prompt_version="english-translation-v1",
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
+                    estimated_cost_usd=result.estimated_cost_usd,
+                )
+                translated_count += 1
+                input_tokens += result.input_tokens
+                output_tokens += result.output_tokens
+                cost += result.estimated_cost_usd
+            except Exception as exc:
+                errors.append(str(exc))
+    return EnglishBackfillSummary(
+        translated_count=translated_count,
+        error_count=len(errors),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        estimated_cost_usd=round(cost, 6),
+        errors=tuple(errors),
+    )
+
+
 def _personal_relevance(topics: list[str], affinities: dict[str, float]) -> float:
     if not topics:
         return 0.5
