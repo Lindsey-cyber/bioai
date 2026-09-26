@@ -16,7 +16,6 @@ type FeedRow = {
   published_at: string;
   arxiv_id: string;
   title: string;
-  abstract: string;
   authors: JsonObject[];
   affiliations: JsonObject[];
   topics: string[];
@@ -164,8 +163,8 @@ function transformRow(row: FeedRow) {
       simple: String(value.simple || "解释正在生成。"),
       professional: String(value.professional || "专业解释正在生成。"),
       titleEn: ["What happened?", "What problem are they solving?", "How did they do it?", "What were the results?", "Why should I know about it?"][index],
-      simpleEn: String(value.simple_en || (index === 0 ? row.abstract : "An English summary will be available after this archived story is refreshed.")),
-      professionalEn: String(value.professional_en || "This story predates bilingual processing. Open the original paper for complete technical details."),
+      simpleEn: String(value.simple_en || "English overview is being prepared."),
+      professionalEn: String(value.professional_en || "A complete English translation of the Chinese professional explanation is being prepared."),
       terms: index === 2 ? terms : undefined,
     };
   });
@@ -229,7 +228,6 @@ export async function GET(request: NextRequest) {
         stories.published_at,
         papers.arxiv_id,
         papers.title,
-        papers.abstract,
         papers.authors,
         papers.affiliations,
         papers.topics,

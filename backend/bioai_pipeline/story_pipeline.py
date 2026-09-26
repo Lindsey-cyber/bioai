@@ -3,7 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from bioai_pipeline.ai import FastAssessment, FastAssessmentBatch, OpenAIProcessor, StoryExplanation
+from bioai_pipeline.ai import (
+    EnglishTranslation,
+    FastAssessment,
+    FastAssessmentBatch,
+    OpenAIProcessor,
+    StoryExplanation,
+)
 from bioai_pipeline.config import Settings
 from bioai_pipeline.models import PaperRecord
 from bioai_pipeline.repository import Repository
@@ -295,6 +301,37 @@ def run_story_processing(
                 except Exception as exc:
                     errors.append(f"{paper.arxiv_id}: deep: {exc}")
                     repository.mark_processing_error(paper.id, str(exc))
+
+            # English is a faithful translation of the approved Chinese five-part
+            # explanation. It never rereads the paper and uses the inexpensive model.
+            translation_candidates = repository.list_english_translation_candidates(
+                max(20, sol_limit)
+            )
+            for candidate in translation_candidates:
+                try:
+                    content = candidate["content"]
+                    translation_result = ai.translate_explanation(
+                        title_zh=str(content.get("title_zh") or ""),
+                        sections=dict(content.get("sections") or {}),
+                        limitations=list(candidate["limitations"]),
+                    )
+                    translation = translation_result.value
+                    if not isinstance(translation, EnglishTranslation):
+                        raise RuntimeError("Unexpected English translation result type")
+                    repository.save_english_translation(
+                        str(candidate["explanation_id"]),
+                        translation,
+                        model=translation_result.model,
+                        prompt_version="english-translation-v1",
+                        input_tokens=translation_result.input_tokens,
+                        output_tokens=translation_result.output_tokens,
+                        estimated_cost_usd=translation_result.estimated_cost_usd,
+                    )
+                    total_input_tokens += translation_result.input_tokens
+                    total_output_tokens += translation_result.output_tokens
+                    total_cost += translation_result.estimated_cost_usd
+                except Exception as exc:
+                    errors.append(f"english translation: {exc}")
 
             repository.finish_run(
                 run_id,

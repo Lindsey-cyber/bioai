@@ -9,7 +9,7 @@ from typing import Any
 import psycopg
 from psycopg.types.json import Jsonb
 
-from bioai_pipeline.ai import FastAssessment, StoryExplanation
+from bioai_pipeline.ai import EnglishTranslation, FastAssessment, StoryExplanation
 from bioai_pipeline.models import ArxivPaper, HeuristicResult, OpenAlexMetadata, PaperRecord
 
 
@@ -517,7 +517,6 @@ class Repository(AbstractContextManager["Repository"]):
         content = {
             "title_zh": explanation.title_zh,
             "sections": explanation.sections.model_dump(mode="json"),
-            "limitations_en": explanation.limitations_en,
         }
         with self.connection.transaction():
             with self.connection.cursor() as cursor:
@@ -611,6 +610,78 @@ class Repository(AbstractContextManager["Repository"]):
                     (paper.id,),
                 )
         return story_id
+
+    def list_english_translation_candidates(self, limit: int) -> list[dict[str, Any]]:
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT explanation.id::text, explanation.content, explanation.limitations
+                FROM stories
+                JOIN LATERAL (
+                    SELECT id, content, limitations
+                    FROM explanations
+                    WHERE explanations.story_id = stories.id
+                    ORDER BY explanations.created_at DESC
+                    LIMIT 1
+                ) explanation ON true
+                WHERE stories.status = 'published'
+                  AND COALESCE(
+                    explanation.content #>> '{sections,what_happened,simple_en}',
+                    ''
+                  ) = ''
+                ORDER BY stories.published_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return [
+                {
+                    "explanation_id": row[0],
+                    "content": row[1] or {},
+                    "limitations": row[2] or [],
+                }
+                for row in cursor.fetchall()
+            ]
+
+    def save_english_translation(
+        self,
+        explanation_id: str,
+        translation: EnglishTranslation,
+        *,
+        model: str,
+        prompt_version: str,
+        input_tokens: int,
+        output_tokens: int,
+        estimated_cost_usd: float,
+    ) -> None:
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT content FROM explanations WHERE id = %s",
+                (explanation_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                raise RuntimeError("Explanation disappeared during English translation")
+            content = dict(row[0] or {})
+            sections = dict(content.get("sections") or {})
+            translated_sections = translation.sections.model_dump(mode="json")
+            for key, translated in translated_sections.items():
+                section = dict(sections.get(key) or {})
+                section.update(translated)
+                sections[key] = section
+            content["sections"] = sections
+            content["limitations_en"] = translation.limitations_en
+            content["english_translation_meta"] = {
+                "model": model,
+                "prompt_version": prompt_version,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "estimated_cost_usd": estimated_cost_usd,
+            }
+            cursor.execute(
+                "UPDATE explanations SET content = %s WHERE id = %s",
+                (Jsonb(content), explanation_id),
+            )
 
     def mark_processing_error(self, paper_id: str, error: str) -> None:
         with self.connection.cursor() as cursor:

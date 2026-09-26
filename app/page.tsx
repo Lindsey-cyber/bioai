@@ -86,7 +86,7 @@ type Story = {
   exploration?: boolean;
 };
 
-const LanguageContext = createContext<Language>("zh");
+const LanguageContext = createContext<Language>("en");
 
 function useLanguage() {
   return useContext(LanguageContext);
@@ -97,8 +97,8 @@ function sectionCopy(story: Story, section: Section, index: number, language: La
   const fallback = storyEnglish[story.id]?.sections[index];
   return {
     title: section.titleEn || localizedSectionTitles.en[index] || section.title,
-    simple: section.simpleEn || fallback?.simple || "An English summary has not yet been generated for this archived story. Open the original source for the full context.",
-    professional: section.professionalEn || fallback?.professional || "This story predates bilingual processing. Its next scheduled refresh will generate a complete English professional explanation.",
+    simple: section.simpleEn || fallback?.simple || "English overview is being prepared.",
+    professional: section.professionalEn || fallback?.professional || "A complete English translation of the Chinese professional explanation is being prepared.",
   };
 }
 
@@ -480,7 +480,7 @@ async function persistFeedback(storyId: string, option: Feedback, active: boolea
 }
 
 export default function Home() {
-  const [language, setLanguage] = useState<Language>("zh");
+  const [language, setLanguage] = useState<Language>("en");
   const [view, setView] = useState<View>("feed");
   const [mode, setMode] = useState<FeedMode>("for-you");
   const [theme, setTheme] = useState<Theme>("night");
@@ -513,7 +513,7 @@ export default function Home() {
       setTopics(readLocal("bioai:topics", ["蛋白质设计", "药物发现", "单细胞", "NeuroAI"]));
       setSources(readLocal("bioai:sources", ["arXiv", "bioRxiv", "PubMed"]));
       setTheme(readLocal<Theme>("bioai:theme", "night"));
-      setLanguage(readLocal<Language>("bioai:language", "zh"));
+      setLanguage(readLocal<Language>("bioai:language", "en"));
       setHydrated(true);
     });
     return () => window.cancelAnimationFrame(frame);
@@ -1131,7 +1131,7 @@ function openOriginalSource(story: Story) {
 }
 
 function showExternalDemo(source: string, language?: Language) {
-  const currentLanguage = language || readLocal<Language>("bioai:language", "zh");
+  const currentLanguage = language || readLocal<Language>("bioai:language", "en");
   window.dispatchEvent(new CustomEvent("bioai:toast", { detail: source }));
   alert(currentLanguage === "zh"
     ? `${source}\n\nPhase 1 使用 mock source；Phase 3 接入真实来源后将在新窗口打开。`

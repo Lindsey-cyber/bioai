@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from bioai_pipeline.ai import (
+    EnglishTranslation,
     ExplanationPart,
     ExplanationSections,
     FastAssessmentBatch,
@@ -23,8 +24,23 @@ class FakeResponses:
     def parse(self, **kwargs: object) -> SimpleNamespace:
         self.kwargs = kwargs
         text_format = kwargs["text_format"]
-        parsed = text_format.model_validate(
-            {
+        if text_format is EnglishTranslation:
+            part = {
+                "simple_en": "The team trained a model to predict brain activity.",
+                "professional_en": "The model connects neural measurements with learned representations. It preserves the scope and limitations stated in the Chinese explanation without adding new claims.",
+            }
+            payload = {
+                "sections": {
+                    "what_happened": part,
+                    "problem": part,
+                    "approach": part,
+                    "results": part,
+                    "why_it_matters": part,
+                },
+                "limitations_en": ["The study has not yet been prospectively validated."],
+            }
+        else:
+            payload = {
                 "assessments": [
                     {
                         "arxiv_id": "2609.00001",
@@ -38,7 +54,7 @@ class FakeResponses:
                     }
                 ]
             }
-        )
+        parsed = text_format.model_validate(payload)
         return SimpleNamespace(
             output_parsed=parsed,
             model="gpt-5.6-luna",
@@ -83,8 +99,20 @@ class OpenAIProcessorTest(unittest.TestCase):
         self.assertIs(client.responses.kwargs["store"], False)
         self.assertEqual(result.estimated_cost_usd, 0.0008)
 
+    def test_translation_uses_fast_model_and_only_supplied_explanation(self) -> None:
+        client = FakeClient()
+        result = OpenAIProcessor(Settings.from_env(), client=client).translate_explanation(
+            title_zh="脑活动基础模型",
+            sections={"what_happened": {"simple": "团队训练了模型。", "professional": "模型预测脑活动。"}},
+            limitations=["尚未前瞻验证。"],
+        )
+
+        self.assertIsInstance(result.value, EnglishTranslation)
+        self.assertEqual(client.responses.kwargs["model"], "gpt-5.6-luna")
+        self.assertNotIn("paper_text", str(client.responses.kwargs["input"]))
+
     def test_quality_guard_rejects_model_process_text(self) -> None:
-        part = ExplanationPart(simple="清晰的中文解释。", professional="专业中文解释。", simple_en="Clear English explanation.", professional_en="Technical English explanation.")
+        part = ExplanationPart(simple="清晰的中文解释。", professional="专业中文解释。")
         explanation = StoryExplanation(
             title_zh="测试论文",
             sections=ExplanationSections(
@@ -95,7 +123,6 @@ class OpenAIProcessorTest(unittest.TestCase):
                 why_it_matters=part,
             ),
             limitations=["样本量较小。 Need Chinese only. Let's revise final limitations."],
-            limitations_en=["The sample is small."],
             terminology=[],
         )
 
@@ -106,8 +133,6 @@ class OpenAIProcessorTest(unittest.TestCase):
         part = ExplanationPart(
             simple="研究使用了 MRI 数据。",
             professional="模型在 computational benchmark 上进行了验证。",
-            simple_en="The study used MRI data.",
-            professional_en="The model was evaluated on a computational benchmark.",
         )
         explanation = StoryExplanation(
             title_zh="测试论文",
@@ -119,7 +144,6 @@ class OpenAIProcessorTest(unittest.TestCase):
                 why_it_matters=part,
             ),
             limitations=["目前没有 wet-lab validation。"],
-            limitations_en=["There is currently no wet-lab validation."],
             terminology=[],
         )
 
