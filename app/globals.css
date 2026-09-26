@@ -140,6 +140,20 @@ button:focus-visible { outline: 1px solid var(--mint); outline-offset: 3px; }
   line-height: 1;
 }
 .theme-toggle:hover { border-color: var(--mint); color: var(--mint); background: var(--mint-soft); }
+.language-toggle {
+  height: 29px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 7px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  font: 600 8px/1 var(--mono);
+}
+.language-toggle button { border: 0; padding: 3px 2px; background: transparent; color: var(--muted); cursor: pointer; font: inherit; }
+.language-toggle button:hover, .language-toggle button.active { color: var(--mint); }
+.language-toggle span { color: var(--line-strong); }
 
 .feed-wrap, .page-wrap { padding: 0 22px 68px; }
 .feed-intro { min-height: 112px; padding: 28px 7px 21px; display: flex; justify-content: space-between; gap: 22px; align-items: flex-end; border-bottom: 1px solid var(--line-strong); }
@@ -477,6 +491,7 @@ button:focus-visible { outline: 1px solid var(--mint); outline-offset: 3px; }
   .toggle-chips, .geo-lock { margin-left: 0; }
   .topic-groups { margin-left: 0; }
   .region-pill { display: none; }
+  .language-toggle { padding-inline: 5px; }
   .toast { bottom: 70px; }
 }
 

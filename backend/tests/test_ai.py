@@ -84,7 +84,7 @@ class OpenAIProcessorTest(unittest.TestCase):
         self.assertEqual(result.estimated_cost_usd, 0.0008)
 
     def test_quality_guard_rejects_model_process_text(self) -> None:
-        part = ExplanationPart(simple="清晰的中文解释。", professional="专业中文解释。")
+        part = ExplanationPart(simple="清晰的中文解释。", professional="专业中文解释。", simple_en="Clear English explanation.", professional_en="Technical English explanation.")
         explanation = StoryExplanation(
             title_zh="测试论文",
             sections=ExplanationSections(
@@ -95,6 +95,7 @@ class OpenAIProcessorTest(unittest.TestCase):
                 why_it_matters=part,
             ),
             limitations=["样本量较小。 Need Chinese only. Let's revise final limitations."],
+            limitations_en=["The sample is small."],
             terminology=[],
         )
 
@@ -105,6 +106,8 @@ class OpenAIProcessorTest(unittest.TestCase):
         part = ExplanationPart(
             simple="研究使用了 MRI 数据。",
             professional="模型在 computational benchmark 上进行了验证。",
+            simple_en="The study used MRI data.",
+            professional_en="The model was evaluated on a computational benchmark.",
         )
         explanation = StoryExplanation(
             title_zh="测试论文",
@@ -116,6 +119,7 @@ class OpenAIProcessorTest(unittest.TestCase):
                 why_it_matters=part,
             ),
             limitations=["目前没有 wet-lab validation。"],
+            limitations_en=["There is currently no wet-lab validation."],
             terminology=[],
         )
 

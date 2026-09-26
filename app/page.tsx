@@ -1,6 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  ageLabel,
+  feedbackLabels,
+  feedbackMessages,
+  institutionEnglish,
+  personEnglish,
+  sectionTitles as localizedSectionTitles,
+  storyEnglish,
+  topicLabel,
+  ui,
+  type Language,
+} from "./i18n";
 
 type View = "feed" | "saved" | "settings";
 type FeedMode = "for-you" | "latest";
@@ -43,6 +55,9 @@ type Section = {
   title: string;
   simple: string;
   professional: string;
+  titleEn?: string;
+  simpleEn?: string;
+  professionalEn?: string;
   terms?: Term[];
 };
 
@@ -60,6 +75,7 @@ type Story = {
   finalScore?: number;
   sections: Section[];
   limitation?: string;
+  limitationEn?: string;
   authors: string[];
   institutions: string[];
   people?: Person[];
@@ -69,6 +85,27 @@ type Story = {
   originalUrl?: string;
   exploration?: boolean;
 };
+
+const LanguageContext = createContext<Language>("zh");
+
+function useLanguage() {
+  return useContext(LanguageContext);
+}
+
+function sectionCopy(story: Story, section: Section, index: number, language: Language) {
+  if (language === "zh") return { title: section.title, simple: section.simple, professional: section.professional };
+  const fallback = storyEnglish[story.id]?.sections[index];
+  return {
+    title: section.titleEn || localizedSectionTitles.en[index] || section.title,
+    simple: section.simpleEn || fallback?.simple || "An English summary has not yet been generated for this archived story. Open the original source for the full context.",
+    professional: section.professionalEn || fallback?.professional || "This story predates bilingual processing. Its next scheduled refresh will generate a complete English professional explanation.",
+  };
+}
+
+function limitationCopy(story: Story, language: Language) {
+  if (language === "zh") return story.limitation;
+  return story.limitationEn || storyEnglish[story.id]?.limitation;
+}
 
 const TERMS: Record<string, Term> = {
   plm: {
@@ -443,6 +480,7 @@ async function persistFeedback(storyId: string, option: Feedback, active: boolea
 }
 
 export default function Home() {
+  const [language, setLanguage] = useState<Language>("zh");
   const [view, setView] = useState<View>("feed");
   const [mode, setMode] = useState<FeedMode>("for-you");
   const [theme, setTheme] = useState<Theme>("night");
@@ -475,6 +513,7 @@ export default function Home() {
       setTopics(readLocal("bioai:topics", ["蛋白质设计", "药物发现", "单细胞", "NeuroAI"]));
       setSources(readLocal("bioai:sources", ["arXiv", "bioRxiv", "PubMed"]));
       setTheme(readLocal<Theme>("bioai:theme", "night"));
+      setLanguage(readLocal<Language>("bioai:language", "zh"));
       setHydrated(true);
     });
     return () => window.cancelAnimationFrame(frame);
@@ -507,6 +546,7 @@ export default function Home() {
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:topics", JSON.stringify(topics)); }, [topics, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:sources", JSON.stringify(sources)); }, [sources, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem("bioai:theme", JSON.stringify(theme)); }, [theme, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem("bioai:language", JSON.stringify(language)); }, [language, hydrated]);
 
   useEffect(() => {
     if (!toast) return;
@@ -558,7 +598,7 @@ export default function Home() {
   const toggleArray = (value: string, current: string[], setter: (next: string[]) => void, label: string) => {
     const next = current.includes(value) ? current.filter((id) => id !== value) : [...current, value];
     setter(next);
-    showToast(current.includes(value) ? `已从收藏移除${label}` : `已收藏${label}`);
+    showToast(current.includes(value) ? `${ui[language].removed}${label}` : `${ui[language].added}${label}`);
   };
 
   const applyFeedback = (storyId: string, option: Feedback) => {
@@ -585,16 +625,9 @@ export default function Home() {
           setLiveStories(stories);
           setSelectedStory((current) => current ? stories.find((story) => story.id === current.id) || current : stories[0]);
         })
-        .catch(() => showToast("本地已记录；云端偏好暂时未更新"));
+        .catch(() => showToast(ui[language].localFeedback));
     }
-    const message: Record<Feedback, string> = {
-      太复杂: "已记住：解释会更浅显，主题偏好不变",
-      太简单: "已记住：解释会更专业，主题偏好不变",
-      多来这种: "已提高相关主题、作者和机构偏好",
-      少来这种: "已降低相关主题、作者和机构偏好",
-      多举例子: "已记住：后续解释会增加例子",
-    };
-    showToast(message[option]);
+    showToast(feedbackMessages[option][language]);
   };
 
   const navigate = (next: View) => {
@@ -612,8 +645,9 @@ export default function Home() {
   };
 
   return (
-    <div className={`app-shell ${theme} ${selectedStory && view === "feed" ? "has-detail" : ""}`}>
-      <aside className="desktop-sidebar" aria-label="主导航">
+    <LanguageContext.Provider value={language}>
+    <div lang={language === "zh" ? "zh-CN" : "en"} className={`app-shell ${theme} ${selectedStory && view === "feed" ? "has-detail" : ""}`}>
+      <aside className="desktop-sidebar" aria-label={language === "zh" ? "主导航" : "Primary navigation"}>
         <Brand />
         <nav className="side-nav">
           <NavButton active={view === "feed"} label="Feed" count={String(feedStories.length).padStart(2, "0")} onClick={() => navigate("feed")} />
@@ -621,7 +655,7 @@ export default function Home() {
           <NavButton active={view === "settings"} label="Settings" onClick={() => navigate("settings")} />
         </nav>
         <div className="side-context source-list">
-          <p className="eyebrow">Sources</p>
+          <p className="eyebrow">{ui[language].sources}</p>
           <span>arXiv</span>
           <span>bioRxiv</span>
           <span>PubMed</span>
@@ -629,13 +663,8 @@ export default function Home() {
           <span>Company / Lab</span>
         </div>
         <div className="side-context topics-list">
-          <p className="eyebrow">Topics</p>
-          <span>蛋白质设计</span>
-          <span>药物发现</span>
-          <span>基因组学</span>
-          <span>神经科学</span>
-          <span>合成生物学</span>
-          <span>脑机接口</span>
+          <p className="eyebrow">{ui[language].topics}</p>
+          {["蛋白质设计", "药物发现", "基因组学", "神经科学", "合成生物学", "脑机接口"].map((topic) => <span key={topic}>{topicLabel(topic, language)}</span>)}
         </div>
       </aside>
 
@@ -658,11 +687,16 @@ export default function Home() {
           <button
             className="theme-toggle"
             onClick={() => setTheme((current) => current === "night" ? "day" : "night")}
-            aria-label={theme === "night" ? "切换到日间阅读模式" : "切换到夜间模式"}
-            title={theme === "night" ? "日间阅读模式" : "夜间模式"}
+            aria-label={language === "zh" ? (theme === "night" ? "切换到日间阅读模式" : "切换到夜间模式") : (theme === "night" ? "Switch to day mode" : "Switch to night mode")}
+            title={language === "zh" ? (theme === "night" ? "日间阅读模式" : "夜间模式") : (theme === "night" ? "Day mode" : "Night mode")}
           >
             {theme === "night" ? "☼" : "☾"}
           </button>
+          <div className="language-toggle" aria-label={language === "zh" ? "语言" : "Language"}>
+            <button className={language === "zh" ? "active" : ""} onClick={() => setLanguage("zh")} aria-pressed={language === "zh"}>中</button>
+            <span>/</span>
+            <button className={language === "en" ? "active" : ""} onClick={() => setLanguage("en")} aria-pressed={language === "en"}>EN</button>
+          </div>
         </header>
 
         {view === "feed" && (
@@ -676,7 +710,7 @@ export default function Home() {
                   isSaved={savedStories.includes(story.id)}
                   selectedFeedback={feedback[story.id] || []}
                   onOpen={() => openStory(story)}
-                  onSave={() => toggleArray(story.id, savedStories, setSavedStories, " Story")}
+                  onSave={() => toggleArray(story.id, savedStories, setSavedStories, language === "zh" ? " Story" : "story")}
                   onFeedback={(option) => applyFeedback(story.id, option)}
                   onTerm={setSelectedTerm}
                   onPerson={(id) => setSelectedPerson(availablePeople.find((person) => person.id === id) || null)}
@@ -708,7 +742,7 @@ export default function Home() {
         )}
       </main>
 
-      <nav className="mobile-nav" aria-label="底部导航">
+      <nav className="mobile-nav" aria-label={language === "zh" ? "底部导航" : "Bottom navigation"}>
         <NavButton active={view === "feed"} label="Feed" onClick={() => navigate("feed")} />
         <NavButton active={view === "saved"} label="Saved" count={String(savedStories.length + savedPeople.length + savedInstitutions.length)} onClick={() => navigate("saved")} />
         <NavButton active={view === "settings"} label="Settings" onClick={() => navigate("settings")} />
@@ -725,7 +759,7 @@ export default function Home() {
             story={selectedStory}
             isSaved={savedStories.includes(selectedStory.id)}
             selectedFeedback={feedback[selectedStory.id] || []}
-            onSave={() => toggleArray(selectedStory.id, savedStories, setSavedStories, " Story")}
+            onSave={() => toggleArray(selectedStory.id, savedStories, setSavedStories, language === "zh" ? " Story" : "story")}
             onFeedback={(option) => applyFeedback(selectedStory.id, option)}
             onTerm={setSelectedTerm}
             onPerson={(id) => setSelectedPerson(availablePeople.find((person) => person.id === id) || null)}
@@ -739,7 +773,7 @@ export default function Home() {
           <PersonProfile
             person={selectedPerson}
             isSaved={savedPeople.includes(selectedPerson.id)}
-            onSave={() => toggleArray(selectedPerson.id, savedPeople, setSavedPeople, " People")}
+            onSave={() => toggleArray(selectedPerson.id, savedPeople, setSavedPeople, language === "zh" ? "人物" : "person")}
             onInstitution={() => setSelectedInstitution(availableInstitutions.find((item) => item.name === selectedPerson.institution) || null)}
             onStory={(story) => { setSelectedPerson(null); openStory(story); }}
             stories={availableStories}
@@ -752,7 +786,7 @@ export default function Home() {
           <InstitutionProfile
             institution={selectedInstitution}
             isSaved={savedInstitutions.includes(selectedInstitution.id)}
-            onSave={() => toggleArray(selectedInstitution.id, savedInstitutions, setSavedInstitutions, " Institution")}
+            onSave={() => toggleArray(selectedInstitution.id, savedInstitutions, setSavedInstitutions, language === "zh" ? "机构" : "institution")}
             onPerson={(person) => { setSelectedInstitution(null); setSelectedPerson(person); }}
             onStory={(story) => { setSelectedInstitution(null); openStory(story); }}
             stories={availableStories}
@@ -764,6 +798,7 @@ export default function Home() {
       {selectedTerm && <TermModal term={selectedTerm} onClose={() => setSelectedTerm(null)} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
+    </LanguageContext.Provider>
   );
 }
 
@@ -786,6 +821,8 @@ function NavButton({ active, label, count, onClick }: { active: boolean; label: 
 function StoryCard({ story, index, isSaved, selectedFeedback, onOpen, onSave, onFeedback, onTerm, onPerson, onInstitution }: {
   story: Story; index: number; isSaved: boolean; selectedFeedback: Feedback[]; onOpen: () => void; onSave: () => void; onFeedback: (f: Feedback) => void; onTerm: (term: Term) => void; onPerson: (id: string) => void; onInstitution: (id: string) => void;
 }) {
+  const language = useLanguage();
+  const copy = ui[language];
   const [openSections, setOpenSections] = useState<number[]>([]);
   const toggleSection = (index: number) => setOpenSections((current) => current.includes(index) ? current.filter((item) => item !== index) : [...current, index]);
   return (
@@ -794,31 +831,32 @@ function StoryCard({ story, index, isSaved, selectedFeedback, onOpen, onSave, on
         <div className="story-kicker">
           <span className="story-index">[{String(index).padStart(2, "0")}]</span>
           <span className="source-name">{story.source}</span>
-          <span>{story.age}</span>
+          <span>{ageLabel(story.age, language)}</span>
           <span>{story.sourceType}</span>
-          {story.exploration && <span className="explore-badge">探索</span>}
+          {story.exploration && <span className="explore-badge">{copy.exploration}</span>}
         </div>
-        <button className={`icon-button ${isSaved ? "saved" : ""}`} onClick={onSave} aria-label={isSaved ? "取消收藏" : "收藏"}>{isSaved ? "★" : "☆"}</button>
+        <button className={`icon-button ${isSaved ? "saved" : ""}`} onClick={onSave} aria-label={isSaved ? (language === "zh" ? "取消收藏" : "Remove from saved") : copy.save}>{isSaved ? "★" : "☆"}</button>
       </div>
       <button className="story-title-button" onClick={onOpen}>
         <h2>{story.title}</h2>
-        <p>{story.titleZh}</p>
+        {language === "zh" && <p>{story.titleZh}</p>}
       </button>
 
       <div className="five-sections">
         {story.sections.map((section, sectionIndex) => {
           const open = openSections.includes(sectionIndex);
+          const localized = sectionCopy(story, section, sectionIndex, language);
           return (
             <div className={`story-section ${open ? "open" : ""}`} key={section.title}>
               <button className="section-summary" onClick={() => toggleSection(sectionIndex)} aria-expanded={open}>
                 <span className="section-number">{sectionIndex + 1}</span>
-                <span><b>{section.title}</b><em>{section.simple}</em></span>
+                <span><b>{localized.title}</b><em>{localized.simple}</em></span>
                 <span className="chevron">{open ? "−" : "+"}</span>
               </button>
               {open && (
                 <div className="professional-inline">
-                  <span>PROFESSIONAL</span>
-                  <p>{section.professional}</p>
+                  <span>{copy.professional}</span>
+                  <p>{localized.professional}</p>
                   {section.terms?.map((term) => <button className="term-link" key={term.en} onClick={() => onTerm(term)}>{term.en}{term.abbr ? ` (${term.abbr})` : ""}</button>)}
                 </div>
               )}
@@ -827,10 +865,10 @@ function StoryCard({ story, index, isSaved, selectedFeedback, onOpen, onSave, on
         })}
       </div>
 
-      {story.limitation && <div className="warning-compact"><b>⚠ 注意</b><span>{story.limitation}</span></div>}
+      {limitationCopy(story, language) && <div className="warning-compact"><b>⚠ {copy.warning}</b><span>{limitationCopy(story, language)}</span></div>}
 
       {story.institutions.length > 0 && <div className="entity-row">
-        <span className="entity-label">机构</span>
+        <span className="entity-label">{copy.institutions}</span>
         <div>{story.institutions.map((id) => {
           const institution = story.institutionDetails?.find((item) => item.id === id) || INSTITUTIONS.find((item) => item.id === id);
           if (!institution) return null;
@@ -838,7 +876,7 @@ function StoryCard({ story, index, isSaved, selectedFeedback, onOpen, onSave, on
         })}</div>
       </div>}
       {story.authors.length > 0 && <div className="entity-row">
-        <span className="entity-label">作者</span>
+        <span className="entity-label">{copy.authors}</span>
         <div>{story.authors.map((id) => {
           const person = story.people?.find((item) => item.id === id) || PEOPLE.find((item) => item.id === id);
           if (!person) return null;
@@ -846,17 +884,18 @@ function StoryCard({ story, index, isSaved, selectedFeedback, onOpen, onSave, on
         })}</div>
       </div>}
 
-      <div className="source-row"><span>SOURCES</span>{story.sources.map((source, i) => <button key={source} onClick={() => openStorySource(story, i)}>{i === 0 ? "↗ " : ""}{source}</button>)}</div>
+      <div className="source-row"><span>{copy.sources}</span>{story.sources.map((source, i) => <button key={source} onClick={() => openStorySource(story, i)}>{i === 0 ? "↗ " : ""}{source}</button>)}</div>
       <FeedbackBar selected={selectedFeedback} onFeedback={onFeedback} />
-      <button className="open-story" onClick={onOpen}>阅读全文 <span>→</span></button>
+      <button className="open-story" onClick={onOpen}>{copy.readStory} <span>→</span></button>
     </article>
   );
 }
 
 function FeedbackBar({ selected, onFeedback }: { selected: Feedback[]; onFeedback: (feedback: Feedback) => void }) {
+  const language = useLanguage();
   return (
-    <div className="feedback-bar" aria-label="反馈">
-      {feedbackOptions.map((option) => <button key={option} className={selected.includes(option) ? "active" : ""} onClick={() => onFeedback(option)}>{option}</button>)}
+    <div className="feedback-bar" aria-label={language === "zh" ? "反馈" : "Feedback"}>
+      {feedbackOptions.map((option) => <button key={option} className={selected.includes(option) ? "active" : ""} onClick={() => onFeedback(option)}>{feedbackLabels[option][language]}</button>)}
     </div>
   );
 }
@@ -864,6 +903,8 @@ function FeedbackBar({ selected, onFeedback }: { selected: Feedback[]; onFeedbac
 function StoryDetail({ story, isSaved, selectedFeedback, onSave, onFeedback, onTerm, onPerson, onInstitution }: {
   story: Story; isSaved: boolean; selectedFeedback: Feedback[]; onSave: () => void; onFeedback: (f: Feedback) => void; onTerm: (term: Term) => void; onPerson: (id: string) => void; onInstitution: (id: string) => void;
 }) {
+  const language = useLanguage();
+  const copy = ui[language];
   const [expanded, setExpanded] = useState<number[]>([0]);
   const toggle = (index: number) => setExpanded((items) => items.includes(index) ? items.filter((item) => item !== index) : [...items, index]);
   return (
@@ -871,26 +912,27 @@ function StoryDetail({ story, isSaved, selectedFeedback, onSave, onFeedback, onT
       <div className="detail-heading">
         <p className="story-kicker"><span className="source-name">{story.source}</span><span>{story.date}</span><span>{story.sourceType}</span></p>
         <h2>{story.title}</h2>
-        <p className="detail-title-zh">{story.titleZh}</p>
-        <div className="topic-row">{story.topics.map((topic) => <span key={topic}>{topic}</span>)}</div>
+        {language === "zh" && <p className="detail-title-zh">{story.titleZh}</p>}
+        <div className="topic-row">{story.topics.map((topic) => <span key={topic}>{topicLabel(topic, language)}</span>)}</div>
       </div>
       <div className="original-actions">
-        <button onClick={() => openOriginalSource(story)}>↗ Original Source</button>
-        <button onClick={onSave}>{isSaved ? "★ Saved" : "☆ Save"}</button>
+        <button onClick={() => openOriginalSource(story)}>↗ {copy.originalSource}</button>
+        <button onClick={onSave}>{isSaved ? `★ ${copy.saved}` : `☆ ${copy.save}`}</button>
       </div>
       <div className="detail-sections">
         {story.sections.map((section, index) => {
           const isExpanded = expanded.includes(index);
+          const localized = sectionCopy(story, section, index, language);
           return (
             <section key={section.title} className="detail-section">
-              <div className="detail-section-title"><span>{String(index + 1).padStart(2, "0")}</span><h3>{section.title}</h3></div>
-              <p className="simple-copy">{section.simple}</p>
-              <button className="expand-button" onClick={() => toggle(index)}>{isExpanded ? "收起专业解释 ↑" : "展开专业解释 ↓"}</button>
+              <div className="detail-section-title"><span>{String(index + 1).padStart(2, "0")}</span><h3>{localized.title}</h3></div>
+              <p className="simple-copy">{localized.simple}</p>
+              <button className="expand-button" onClick={() => toggle(index)}>{isExpanded ? copy.collapse : copy.expand}</button>
               {isExpanded && (
                 <div className="professional-copy">
-                  <p>{section.professional}</p>
+                  <p>{localized.professional}</p>
                   {section.terms && section.terms.length > 0 && (
-                    <div className="term-list"><span>关键术语</span>{section.terms.map((term) => <button key={term.en} onClick={() => onTerm(term)}>{term.zh}<small>{term.en}{term.abbr ? ` · ${term.abbr}` : ""}</small></button>)}</div>
+                    <div className="term-list"><span>{copy.keyTerms}</span>{section.terms.map((term) => <button key={term.en} onClick={() => onTerm(term)}>{language === "zh" ? term.zh : term.en}<small>{language === "zh" ? term.en : term.zh}{term.abbr ? ` · ${term.abbr}` : ""}</small></button>)}</div>
                   )}
                 </div>
               )}
@@ -898,39 +940,41 @@ function StoryDetail({ story, isSaved, selectedFeedback, onSave, onFeedback, onT
           );
         })}
       </div>
-      {story.limitation && <div className="warning-box"><strong>⚠ 注意</strong><p>{story.limitation}</p></div>}
+      {limitationCopy(story, language) && <div className="warning-box"><strong>⚠ {copy.warning}</strong><p>{limitationCopy(story, language)}</p></div>}
       {story.authors.length > 0 && <section className="detail-entities">
-        <p className="eyebrow">CORE AUTHORS</p>
+        <p className="eyebrow">{copy.coreAuthors}</p>
         {story.authors.map((id) => {
           const person = story.people?.find((item) => item.id === id) || PEOPLE.find((item) => item.id === id);
           if (!person) return null;
-          return <button className="entity-card" key={id} onClick={() => onPerson(id)}><Avatar initials={person.initials} /><span><b>{person.name}</b><small>{person.role} · {person.institution}</small><em>{person.focus.join(" · ")}</em></span><i>→</i></button>;
+          return <button className="entity-card" key={id} onClick={() => onPerson(id)}><Avatar initials={person.initials} /><span><b>{person.name}</b><small>{person.role} · {person.institution}</small><em>{person.focus.map((focus) => topicLabel(focus, language)).join(" · ")}</em></span><i>→</i></button>;
         })}
       </section>}
       {story.institutions.length > 0 && <section className="detail-entities">
-        <p className="eyebrow">INSTITUTIONS</p>
+        <p className="eyebrow">{copy.institutions}</p>
         <div className="institution-buttons">{story.institutions.map((id) => {
           const institution = story.institutionDetails?.find((item) => item.id === id) || INSTITUTIONS.find((item) => item.id === id);
           if (!institution) return null;
           return <button key={id} onClick={() => onInstitution(id)}><b>{institution.short}</b><span>{institution.name}<small>{institution.location}</small></span><i>→</i></button>;
         })}</div>
       </section>}
-      <div className="source-stack"><p className="eyebrow">STORY CLUSTER · {story.sources.length} SOURCES</p>{story.sources.map((source, i) => <button key={source} onClick={() => openStorySource(story, i)}><span>{i === 0 ? "ORIGINAL" : String(i + 1).padStart(2, "0")}</span><b>{source}</b><i>↗</i></button>)}</div>
-      <div className="detail-feedback"><p>这条解释对你有帮助吗？</p><FeedbackBar selected={selectedFeedback} onFeedback={onFeedback} /></div>
+      <div className="source-stack"><p className="eyebrow">{copy.storyCluster} · {story.sources.length} {copy.sourcesCount}</p>{story.sources.map((source, i) => <button key={source} onClick={() => openStorySource(story, i)}><span>{i === 0 ? "ORIGINAL" : String(i + 1).padStart(2, "0")}</span><b>{source}</b><i>↗</i></button>)}</div>
+      <div className="detail-feedback"><p>{copy.helpful}</p><FeedbackBar selected={selectedFeedback} onFeedback={onFeedback} /></div>
     </div>
   );
 }
 
 function Avatar({ initials, small = false }: { initials: string; small?: boolean }) {
-  return <span className={`avatar ${small ? "small" : ""}`} aria-label="可靠照片暂缺，显示姓名首字母">{initials}</span>;
+  const language = useLanguage();
+  return <span className={`avatar ${small ? "small" : ""}`} aria-label={ui[language].noPhoto}>{initials}</span>;
 }
 
 function Drawer({ title, onClose, nested = false, pinned = false, mobileOpen = true, children }: { title: string; onClose: () => void; nested?: boolean; pinned?: boolean; mobileOpen?: boolean; children: React.ReactNode }) {
+  const language = useLanguage();
   return (
     <div className={`drawer-layer ${nested ? "nested" : ""} ${pinned ? "pinned" : ""} ${mobileOpen ? "mobile-open" : ""}`} role="dialog" aria-modal={pinned ? "false" : "true"}>
-      <button className="drawer-scrim" aria-label="关闭" onClick={onClose} />
+      <button className="drawer-scrim" aria-label={ui[language].close} onClick={onClose} />
       <aside className="drawer-panel">
-        <div className="drawer-bar"><span>{title}</span><button onClick={onClose}>[ close ]</button></div>
+        <div className="drawer-bar"><span>{title}</span><button onClick={onClose}>[ {ui[language].close} ]</button></div>
         {children}
       </aside>
     </div>
@@ -938,51 +982,59 @@ function Drawer({ title, onClose, nested = false, pinned = false, mobileOpen = t
 }
 
 function TermModal({ term, onClose }: { term: Term; onClose: () => void }) {
+  const language = useLanguage();
+  const copy = ui[language];
   return (
     <div className="term-modal-layer" role="dialog" aria-modal="true">
-      <button className="term-scrim" aria-label="关闭术语" onClick={onClose} />
+      <button className="term-scrim" aria-label={language === "zh" ? "关闭术语" : "Close terminology"} onClick={onClose} />
       <div className="term-modal">
-        <div className="term-modal-top"><span>TERMINOLOGY</span><button onClick={onClose}>×</button></div>
-        <p className="term-zh">{term.zh}</p>
+        <div className="term-modal-top"><span>{copy.terminology}</span><button onClick={onClose}>×</button></div>
+        {language === "zh" && <p className="term-zh">{term.zh}</p>}
         <h2>{term.en}{term.abbr && <small>{term.abbr}</small>}</h2>
-        <div className="term-definition"><span>中文</span><p>{term.zhExplanation}</p></div>
-        <div className="term-definition"><span>ENGLISH</span><p>{term.enExplanation}</p></div>
-        <button className="term-close" onClick={onClose}>知道了</button>
+        {language === "zh" && <div className="term-definition"><span>{copy.chinese}</span><p>{term.zhExplanation}</p></div>}
+        <div className="term-definition"><span>{copy.english}</span><p>{term.enExplanation}</p></div>
+        <button className="term-close" onClick={onClose}>{copy.understood}</button>
       </div>
     </div>
   );
 }
 
 function PersonProfile({ person, isSaved, onSave, onInstitution, onStory, stories }: { person: Person; isSaved: boolean; onSave: () => void; onInstitution: () => void; onStory: (story: Story) => void; stories: Story[] }) {
+  const language = useLanguage();
+  const copy = ui[language];
+  const translated = personEnglish[person.id];
   const related = stories.filter((story) => story.authors.includes(person.id));
   return (
     <div className="profile-content">
       <div className="profile-hero"><Avatar initials={person.initials} /><div><h2>{person.name}</h2><p>{person.role}</p><button onClick={onInstitution}>{person.institution} →</button></div></div>
-      <button className={`save-profile ${isSaved ? "active" : ""}`} onClick={onSave}>{isSaved ? "★ 已收藏" : "☆ 收藏人物"}</button>
-      <ProfileSection label="他 / 她是谁"><p>{person.bio}</p></ProfileSection>
-      <ProfileSection label="教育和职业经历"><p>{person.career}</p></ProfileSection>
-      <ProfileSection label="主要研究方向"><div className="topic-row">{person.focus.map((focus) => <span key={focus}>{focus}</span>)}</div></ProfileSection>
-      <ProfileSection label="代表论文 · 3"><div className="paper-list">{person.papers.map((paper, index) => <button key={paper.title} onClick={() => showExternalDemo("Representative paper")}><span>{String(index + 1).padStart(2, "0")}</span><div><b>{paper.title}</b><small>{paper.year} · {paper.note}</small></div><i>↗</i></button>)}</div></ProfileSection>
-      <ProfileSection label="最近相关 Story"><div className="related-list">{related.map((story) => <button key={story.id} onClick={() => onStory(story)}><span>{story.source}</span><b>{story.titleZh}</b><i>→</i></button>)}</div></ProfileSection>
+      <button className={`save-profile ${isSaved ? "active" : ""}`} onClick={onSave}>{isSaved ? `★ ${copy.personSaved}` : `☆ ${copy.savePerson}`}</button>
+      <ProfileSection label={copy.who}><p>{language === "en" ? translated?.bio || "Verified profile information is being prepared." : person.bio}</p></ProfileSection>
+      <ProfileSection label={copy.career}><p>{language === "en" ? translated?.career || "Verified education and career history is not yet available." : person.career}</p></ProfileSection>
+      <ProfileSection label={copy.focus}><div className="topic-row">{person.focus.map((focus) => <span key={focus}>{topicLabel(focus, language)}</span>)}</div></ProfileSection>
+      <ProfileSection label={copy.papers}><div className="paper-list">{person.papers.map((paper, index) => <button key={paper.title} onClick={() => showExternalDemo("Representative paper", language)}><span>{String(index + 1).padStart(2, "0")}</span><div><b>{paper.title}</b><small>{paper.year} · {language === "en" ? translated?.paperNotes[index] || "Representative work" : paper.note}</small></div><i>↗</i></button>)}</div></ProfileSection>
+      <ProfileSection label={copy.recentStories}><div className="related-list">{related.map((story) => <button key={story.id} onClick={() => onStory(story)}><span>{story.source}</span><b>{language === "zh" ? story.titleZh : story.title}</b><i>→</i></button>)}</div></ProfileSection>
     </div>
   );
 }
 
 function InstitutionProfile({ institution, isSaved, onSave, onPerson, onStory, stories, people }: { institution: Institution; isSaved: boolean; onSave: () => void; onPerson: (person: Person) => void; onStory: (story: Story) => void; stories: Story[]; people: Person[] }) {
+  const language = useLanguage();
+  const copy = ui[language];
+  const translated = institutionEnglish[institution.id];
   const related = stories.filter((story) => story.institutions.includes(institution.id));
   return (
     <div className="profile-content">
       <div className="institution-hero"><span>{institution.short}</span><div><p className="eyebrow">{institution.kind}</p><h2>{institution.name}</h2><p>{institution.location}</p></div></div>
-      <button className={`save-profile ${isSaved ? "active" : ""}`} onClick={onSave}>{isSaved ? "★ 已收藏" : "☆ 收藏机构"}</button>
-      <ProfileSection label="是什么机构"><p>{institution.description}</p></ProfileSection>
-      <ProfileSection label="AI × Bio 主要方向"><p>{institution.direction}</p></ProfileSection>
-      <ProfileSection label="为什么值得认识"><p>{institution.why}</p></ProfileSection>
-      <ProfileSection label="核心研究者"><div className="mini-people">{institution.researchers.map((id) => {
+      <button className={`save-profile ${isSaved ? "active" : ""}`} onClick={onSave}>{isSaved ? `★ ${copy.institutionSaved}` : `☆ ${copy.saveInstitution}`}</button>
+      <ProfileSection label={copy.whatInstitution}><p>{language === "en" ? translated?.description || "Verified institution information is being prepared." : institution.description}</p></ProfileSection>
+      <ProfileSection label={copy.direction}><p>{language === "en" ? translated?.direction || institution.direction : institution.direction}</p></ProfileSection>
+      <ProfileSection label={copy.whyKnow}><p>{language === "en" ? translated?.why || "This institution contributed to the featured research." : institution.why}</p></ProfileSection>
+      <ProfileSection label={copy.researchers}><div className="mini-people">{institution.researchers.map((id) => {
         const person = people.find((item) => item.id === id);
         if (!person) return null;
-        return <button key={id} onClick={() => onPerson(person)}><Avatar initials={person.initials} small /><span><b>{person.name}</b><small>{person.focus.join(" · ")}</small></span><i>→</i></button>;
+        return <button key={id} onClick={() => onPerson(person)}><Avatar initials={person.initials} small /><span><b>{person.name}</b><small>{person.focus.map((focus) => topicLabel(focus, language)).join(" · ")}</small></span><i>→</i></button>;
       })}</div></ProfileSection>
-      <ProfileSection label="最近相关 Story"><div className="related-list">{related.map((story) => <button key={story.id} onClick={() => onStory(story)}><span>{story.source}</span><b>{story.titleZh}</b><i>→</i></button>)}</div></ProfileSection>
+      <ProfileSection label={copy.recentStories}><div className="related-list">{related.map((story) => <button key={story.id} onClick={() => onStory(story)}><span>{story.source}</span><b>{language === "zh" ? story.titleZh : story.title}</b><i>→</i></button>)}</div></ProfileSection>
     </div>
   );
 }
@@ -994,6 +1046,8 @@ function ProfileSection({ label, children }: { label: string; children: React.Re
 function SavedView({ tab, setTab, storyIds, peopleIds, institutionIds, stories, people, institutions, onStory, onPerson, onInstitution }: {
   tab: "stories" | "people" | "institutions"; setTab: (tab: "stories" | "people" | "institutions") => void; storyIds: string[]; peopleIds: string[]; institutionIds: string[]; stories: Story[]; people: Person[]; institutions: Institution[]; onStory: (story: Story) => void; onPerson: (person: Person) => void; onInstitution: (institution: Institution) => void;
 }) {
+  const language = useLanguage();
+  const copy = ui[language];
   const empty = tab === "stories" ? storyIds.length === 0 : tab === "people" ? peopleIds.length === 0 : institutionIds.length === 0;
   return (
     <div className="page-wrap">
@@ -1003,9 +1057,9 @@ function SavedView({ tab, setTab, storyIds, peopleIds, institutionIds, stories, 
         <button className={tab === "people" ? "active" : ""} onClick={() => setTab("people")}>People <span>{peopleIds.length}</span></button>
         <button className={tab === "institutions" ? "active" : ""} onClick={() => setTab("institutions")}>Institution <span>{institutionIds.length}</span></button>
       </div>
-      {empty && <div className="empty-state"><span>☆</span><h2>还没有收藏</h2><p>在 Feed 里点星标，内容就会出现在这里。</p></div>}
+      {empty && <div className="empty-state"><span>☆</span><h2>{copy.noSaved}</h2><p>{copy.noSavedHint}</p></div>}
       <div className="saved-list">
-        {tab === "stories" && storyIds.map((id) => { const story = stories.find((item) => item.id === id); return story ? <button key={id} onClick={() => onStory(story)}><span className="saved-source">{story.source}</span><b>{story.title}</b><small>{story.titleZh}</small><i>→</i></button> : null; })}
+        {tab === "stories" && storyIds.map((id) => { const story = stories.find((item) => item.id === id); return story ? <button key={id} onClick={() => onStory(story)}><span className="saved-source">{story.source}</span><b>{story.title}</b>{language === "zh" && <small>{story.titleZh}</small>}<i>→</i></button> : null; })}
         {tab === "people" && peopleIds.map((id) => { const person = people.find((item) => item.id === id); return person ? <button key={id} onClick={() => onPerson(person)}><Avatar initials={person.initials} /><span><b>{person.name}</b><small>{person.role} · {person.institution}</small></span><i>→</i></button> : null; })}
         {tab === "institutions" && institutionIds.map((id) => { const institution = institutions.find((item) => item.id === id); return institution ? <button key={id} onClick={() => onInstitution(institution)}><span className="institution-avatar">{institution.short}</span><span><b>{institution.name}</b><small>{institution.location}</small></span><i>→</i></button> : null; })}
       </div>
@@ -1014,31 +1068,33 @@ function SavedView({ tab, setTab, storyIds, peopleIds, institutionIds, stories, 
 }
 
 function SettingsView({ depth, setDepth, examples, setExamples, topics, setTopics, sources, setSources, showToast }: { depth: string; setDepth: (value: string) => void; examples: string; setExamples: (value: string) => void; topics: string[]; setTopics: (value: string[]) => void; sources: string[]; setSources: (value: string[]) => void; showToast: (message: string) => void }) {
+  const language = useLanguage();
+  const copy = ui[language];
   const toggle = (item: string, values: string[], setter: (items: string[]) => void) => setter(values.includes(item) ? values.filter((value) => value !== item) : [...values, item]);
   return (
     <div className="page-wrap settings-page">
       <div className="page-heading"><h1>Settings</h1></div>
-      <SettingsGroup number="01" title="解释深度" description="控制默认中文解释的技术深度。">
-        <ChoiceRow values={[{ id: "simple", label: "浅显", desc: "尽量少术语" }, { id: "balanced", label: "平衡", desc: "默认推荐" }, { id: "technical", label: "专业", desc: "更多技术细节" }]} selected={depth} onSelect={(id) => { setDepth(id); showToast("解释深度已保存"); }} />
+      <SettingsGroup number="01" title={copy.explanationDepth} description={copy.depthDescription}>
+        <ChoiceRow values={language === "zh" ? [{ id: "simple", label: "浅显", desc: "尽量少术语" }, { id: "balanced", label: "平衡", desc: "默认推荐" }, { id: "technical", label: "专业", desc: "更多技术细节" }] : [{ id: "simple", label: "Simple", desc: "Minimal jargon" }, { id: "balanced", label: "Balanced", desc: "Recommended" }, { id: "technical", label: "Technical", desc: "More detail" }]} selected={depth} onSelect={(id) => { setDepth(id); showToast(copy.depthSaved); }} />
       </SettingsGroup>
-      <SettingsGroup number="02" title="例子数量" description="决定解释中使用多少具体例子。">
-        <ChoiceRow values={[{ id: "few", label: "少量", desc: "更简洁" }, { id: "some", label: "适量", desc: "关键处举例" }, { id: "many", label: "更多", desc: "更具体" }]} selected={examples} onSelect={(id) => { setExamples(id); showToast("例子偏好已保存"); }} />
+      <SettingsGroup number="02" title={copy.exampleAmount} description={copy.exampleDescription}>
+        <ChoiceRow values={language === "zh" ? [{ id: "few", label: "少量", desc: "更简洁" }, { id: "some", label: "适量", desc: "关键处举例" }, { id: "many", label: "更多", desc: "更具体" }] : [{ id: "few", label: "Few", desc: "More concise" }, { id: "some", label: "Some", desc: "Examples where useful" }, { id: "many", label: "More", desc: "More concrete" }]} selected={examples} onSelect={(id) => { setExamples(id); showToast(copy.examplesSaved); }} />
       </SettingsGroup>
-      <SettingsGroup number="03" title="主题" description="影响 For You 的排序，不会从 Latest 删除内容。">
+      <SettingsGroup number="03" title={copy.topics} description={copy.topicDescription}>
         <div className="topic-groups">
           {TOPIC_GROUPS.map((group) => (
             <div className="topic-group" key={group.label}>
-              <p>{group.label}</p>
-              <ToggleChips items={group.items} selected={topics} onToggle={(item) => toggle(item, topics, setTopics)} />
+              <p>{topicLabel(group.label, language)}</p>
+              <ToggleChips items={group.items} selected={topics} onToggle={(item) => toggle(item, topics, setTopics)} labels={language === "en" ? group.items.map((item) => topicLabel(item, language)) : undefined} />
             </div>
           ))}
         </div>
       </SettingsGroup>
-      <SettingsGroup number="04" title="来源" description="第一版优先使用论文与权威索引。">
+      <SettingsGroup number="04" title={copy.sources} description={copy.sourceDescription}>
         <ToggleChips items={["arXiv", "bioRxiv", "PubMed", "OpenAlex", "Lab blogs"]} selected={sources} onToggle={(item) => toggle(item, sources, setSources)} />
       </SettingsGroup>
-      <SettingsGroup number="05" title="地区" description="当前只收录美国和欧洲。">
-        <div className="geo-lock"><span className="status-dot" /><div><b>United States + Europe</b><small>已锁定 · 后续可通过配置修改</small></div><span>LOCKED</span></div>
+      <SettingsGroup number="05" title={copy.geography} description={copy.geographyDescription}>
+        <div className="geo-lock"><span className="status-dot" /><div><b>United States + Europe</b><small>{copy.geographyLocked}</small></div><span>{copy.locked}</span></div>
       </SettingsGroup>
     </div>
   );
@@ -1052,8 +1108,8 @@ function ChoiceRow({ values, selected, onSelect }: { values: { id: string; label
   return <div className="choice-row">{values.map((value) => <button key={value.id} className={selected === value.id ? "active" : ""} onClick={() => onSelect(value.id)}><b>{value.label}</b><small>{value.desc}</small></button>)}</div>;
 }
 
-function ToggleChips({ items, selected, onToggle }: { items: string[]; selected: string[]; onToggle: (item: string) => void }) {
-  return <div className="toggle-chips">{items.map((item) => <button key={item} className={selected.includes(item) ? "active" : ""} onClick={() => onToggle(item)}><span>{selected.includes(item) ? "✓" : "+"}</span>{item}</button>)}</div>;
+function ToggleChips({ items, selected, onToggle, labels }: { items: string[]; selected: string[]; onToggle: (item: string) => void; labels?: string[] }) {
+  return <div className="toggle-chips">{items.map((item, index) => <button key={item} className={selected.includes(item) ? "active" : ""} onClick={() => onToggle(item)}><span>{selected.includes(item) ? "✓" : "+"}</span>{labels?.[index] || item}</button>)}</div>;
 }
 
 function openStorySource(story: Story, index: number) {
@@ -1074,7 +1130,10 @@ function openOriginalSource(story: Story) {
   showExternalDemo("Original Source");
 }
 
-function showExternalDemo(source: string) {
+function showExternalDemo(source: string, language?: Language) {
+  const currentLanguage = language || readLocal<Language>("bioai:language", "zh");
   window.dispatchEvent(new CustomEvent("bioai:toast", { detail: source }));
-  alert(`${source}\n\nPhase 1 使用 mock source；Phase 3 接入真实来源后将在新窗口打开。`);
+  alert(currentLanguage === "zh"
+    ? `${source}\n\nPhase 1 使用 mock source；Phase 3 接入真实来源后将在新窗口打开。`
+    : `${source}\n\nThis is a Phase 1 mock source. Real sources open in a new tab once connected.`);
 }

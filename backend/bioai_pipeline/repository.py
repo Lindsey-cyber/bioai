@@ -517,6 +517,7 @@ class Repository(AbstractContextManager["Repository"]):
         content = {
             "title_zh": explanation.title_zh,
             "sections": explanation.sections.model_dump(mode="json"),
+            "limitations_en": explanation.limitations_en,
         }
         with self.connection.transaction():
             with self.connection.cursor() as cursor:

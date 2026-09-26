@@ -16,6 +16,7 @@ type FeedRow = {
   published_at: string;
   arxiv_id: string;
   title: string;
+  abstract: string;
   authors: JsonObject[];
   affiliations: JsonObject[];
   topics: string[];
@@ -23,7 +24,8 @@ type FeedRow = {
   source_comment: string | null;
   content: {
     title_zh?: string;
-    sections?: Record<string, { simple?: string; professional?: string }>;
+    sections?: Record<string, { simple?: string; professional?: string; simple_en?: string; professional_en?: string }>;
+    limitations_en?: string[];
   };
   limitations: string[];
   terminology: Array<{
@@ -161,6 +163,9 @@ function transformRow(row: FeedRow) {
       title,
       simple: String(value.simple || "解释正在生成。"),
       professional: String(value.professional || "专业解释正在生成。"),
+      titleEn: ["What happened?", "What problem are they solving?", "How did they do it?", "What were the results?", "Why should I know about it?"][index],
+      simpleEn: String(value.simple_en || (index === 0 ? row.abstract : "An English summary will be available after this archived story is refreshed.")),
+      professionalEn: String(value.professional_en || "This story predates bilingual processing. Open the original paper for complete technical details."),
       terms: index === 2 ? terms : undefined,
     };
   });
@@ -190,6 +195,10 @@ function transformRow(row: FeedRow) {
       .map((item) => sanitizeGeneratedText(String(item)))
       .filter(Boolean)
       .join("；") || undefined,
+    limitationEn: (row.content?.limitations_en || [])
+      .map((item) => sanitizeGeneratedText(String(item)))
+      .filter(Boolean)
+      .join("; ") || undefined,
     authors: people.map((person) => person.id),
     institutions: institutions.map((institution) => institution.id),
     people,
@@ -220,6 +229,7 @@ export async function GET(request: NextRequest) {
         stories.published_at,
         papers.arxiv_id,
         papers.title,
+        papers.abstract,
         papers.authors,
         papers.affiliations,
         papers.topics,
